@@ -192,7 +192,7 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
 
       // Fetch active settings from Supabase
       supabase
-        .from('settings')
+        .from('fw_settings')
         .select('*')
         .eq('id', 1)
         .maybeSingle()
@@ -202,10 +202,10 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
           }
         });
 
-      // Fetch verified & pending contributions from Supabase
+      // Fetch verified contributions from Supabase — prayer_note is strictly omitted for end-user privacy!
       supabase
-        .from('contributions')
-        .select('*')
+        .from('fw_contributions')
+        .select('id, contributor_name, amount, reference_id, status, revealed_tile_ids, created_at, verified_at')
         .order('created_at', { ascending: false })
         .then(({ data }) => {
           if (data && data.length > 0) {
@@ -214,22 +214,25 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
         });
 
       const channel = supabase
-        .channel('public:contributions')
+        .channel('public:fw_contributions')
         .on(
           'postgres_changes',
-          { event: '*', schema: 'public', table: 'contributions' },
+          { event: '*', schema: 'public', table: 'fw_contributions' },
           (payload) => {
             if (payload.eventType === 'INSERT') {
               const newRow = payload.new as Contribution;
+              // Strip prayer_note on public client for privacy
+              const sanitizedRow = { ...newRow, prayer_note: undefined };
               setContributions(prev => {
-                if (prev.some(c => c.id === newRow.id)) return prev;
-                return [newRow, ...prev];
+                if (prev.some(c => c.id === sanitizedRow.id)) return prev;
+                return [sanitizedRow, ...prev];
               });
             } else if (payload.eventType === 'UPDATE') {
               const updatedRow = payload.new as Contribution;
-              setContributions(prev => prev.map(c => c.id === updatedRow.id ? updatedRow : c));
+              const sanitizedRow = { ...updatedRow, prayer_note: undefined };
+              setContributions(prev => prev.map(c => c.id === sanitizedRow.id ? sanitizedRow : c));
               if (updatedRow.status === 'verified') {
-                setLastVerifiedEvent(updatedRow);
+                setLastVerifiedEvent(sanitizedRow);
                 sounds.playSplash();
                 sounds.playAdminApprove();
               }
@@ -351,24 +354,39 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
     const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
     const referenceId = `ORAH-${Date.now().toString(36).toUpperCase()}-${randomSuffix}`;
 
-    const newContrib: Contribution = {
+    let newContrib: Contribution = {
       id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `contrib-${Date.now()}-${randomSuffix}`,
       contributor_name: params.contributorName.trim() || 'Anonymous Supporter',
       amount: params.amount,
       reference_id: referenceId,
       upi_transaction_id: params.upiTransactionId.trim(),
-      prayer_note: params.prayerNote?.trim(),
       status: 'pending',
       revealed_tile_ids: [],
       created_at: new Date().toISOString(),
     };
 
-    if (isSupabaseConfigured && supabase) {
-      try {
-        await supabase.from('contributions').insert([newContrib]);
-      } catch (err) {
-        console.warn('Failed to insert to Supabase, saving locally', err);
+    // Log directly to the database via server API using service role key
+    try {
+      const res = await fetch('/api/contributions/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contributorName: params.contributorName,
+          amount: params.amount,
+          upiTransactionId: params.upiTransactionId,
+          prayerNote: params.prayerNote,
+          referenceId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.contribution) {
+        newContrib = {
+          ...data.contribution,
+          prayer_note: undefined, // Strictly omitted on public client for privacy
+        };
       }
+    } catch (err) {
+      console.warn('Failed to insert via server API, saving locally', err);
     }
 
     setContributions(prev => [newContrib, ...prev]);
@@ -467,7 +485,7 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
     setSettings(prev => {
       const updated = { ...prev, ...newSettings, updated_at: new Date().toISOString() };
       if (isSupabaseConfigured && supabase) {
-        supabase.from('settings').update(updated).eq('id', 1).then();
+        supabase.from('fw_settings').update(updated).eq('id', 1).then();
       }
       return updated;
     });

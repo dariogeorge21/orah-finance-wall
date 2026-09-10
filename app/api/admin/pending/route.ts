@@ -14,9 +14,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Supabase server client not configured' }, { status: 500 });
     }
 
-    // Fetch pending and all contributions
+    // Fetch all contributions from fw_contributions including prayer_note
     const { data: contributions, error } = await supabaseAdmin
-      .from('contributions')
+      .from('fw_contributions')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -33,4 +33,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

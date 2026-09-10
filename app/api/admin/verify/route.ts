@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     if (action === 'reject') {
       const { error } = await supabaseAdmin
-        .from('contributions')
+        .from('fw_contributions')
         .update({ status: 'rejected' })
         .eq('id', contributionId);
 
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     // Action === 'verify'
     // 1. Fetch contribution
     const { data: targetContrib, error: fetchErr } = await supabaseAdmin
-      .from('contributions')
+      .from('fw_contributions')
       .select('*')
       .eq('id', contributionId)
       .single();
@@ -53,19 +53,19 @@ export async function POST(req: NextRequest) {
 
     // 2. Fetch settings
     const { data: settings } = await supabaseAdmin
-      .from('settings')
+      .from('fw_settings')
       .select('*')
       .eq('id', 1)
       .single();
 
-    const targetAmount = settings?.target_amount || Number(process.env.NEXT_PUBLIC_DEFAULT_TARGET_AMOUNT) || 100000;
+    const targetAmount = settings?.target_amount || Number(process.env.NEXT_PUBLIC_DEFAULT_TARGET_AMOUNT) || 150000;
     const gridCols = settings?.grid_cols || 40;
     const gridRows = settings?.grid_rows || 24;
     const totalTiles = gridCols * gridRows;
 
     // 3. Fetch currently revealed tiles
     const { data: allVerified } = await supabaseAdmin
-      .from('contributions')
+      .from('fw_contributions')
       .select('revealed_tile_ids')
       .eq('status', 'verified');
 
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
     // 5. Update database row using service role
     const verifiedAt = new Date().toISOString();
     const { data: updated, error: updateErr } = await supabaseAdmin
-      .from('contributions')
+      .from('fw_contributions')
       .update({
         status: 'verified',
         verified_at: verifiedAt,
@@ -108,4 +108,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

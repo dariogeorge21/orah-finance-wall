@@ -274,6 +274,9 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
                   onChange={(e) => setPrayerNote(e.target.value)}
                   className="w-full rounded-xl bg-white/[0.03] px-4 py-2.5 text-sm text-white border border-white/[0.08] placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
                 />
+                <p className="mt-1.5 text-[10px] text-neutral-500 flex items-center gap-1 font-sans">
+                  <span>🔒 Confidential — visible only to the intercessory team, never shown publicly.</span>
+                </p>
               </div>
             </div>
 

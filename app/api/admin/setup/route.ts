@@ -14,19 +14,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Supabase server client not configured' }, { status: 500 });
     }
 
-    // Check if settings row exists
-    const { data: existingSettings, error: selectErr } = await supabaseAdmin
-      .from('settings')
+    // Check if settings row exists in fw_settings
+    const { data: existingSettings } = await supabaseAdmin
+      .from('fw_settings')
       .select('*')
       .eq('id', 1)
       .maybeSingle();
 
     if (!existingSettings) {
-      // Insert default settings
-      await supabaseAdmin.from('settings').upsert({
+      await supabaseAdmin.from('fw_settings').upsert({
         id: 1,
         event_name: process.env.NEXT_PUBLIC_DEFAULT_EVENT_NAME || 'ORAH 2026',
-        target_amount: Number(process.env.NEXT_PUBLIC_DEFAULT_TARGET_AMOUNT) || 100000,
+        target_amount: Number(process.env.NEXT_PUBLIC_DEFAULT_TARGET_AMOUNT) || 150000,
         upi_vpa: process.env.NEXT_PUBLIC_DEFAULT_UPI_VPA || '7838403506@rapl',
         upi_payee_name: process.env.NEXT_PUBLIC_DEFAULT_UPI_PAYEE || 'Dario George',
         banner_image_url: '/jesusAndChildren.jpg',
@@ -46,4 +45,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

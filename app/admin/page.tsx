@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { 
@@ -17,9 +17,12 @@ import {
   ArrowLeft,
   DollarSign,
   Eye,
-  Sparkles
+  Sparkles,
+  HeartHandshake,
+  MessageSquare
 } from 'lucide-react';
 import { WallProvider, useWall } from '@/lib/store';
+import { Contribution } from '@/lib/types';
 
 function AdminDashboardContent() {
   const { 
@@ -37,35 +40,34 @@ function AdminDashboardContent() {
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'pending' | 'verified' | 'settings' | 'testing'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'verified' | 'prayers' | 'settings' | 'testing'>('pending');
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [serverContributions, setServerContributions] = useState<Contribution[]>([]);
 
-  // Settings state
+  // Settings form state
   const [targetInput, setTargetInput] = useState<string>(String(settings.target_amount));
   const [vpaInput, setVpaInput] = useState<string>(settings.upi_vpa);
   const [payeeInput, setPayeeInput] = useState<string>(settings.upi_payee_name);
   const [settingsSaved, setSettingsSaved] = useState<boolean>(false);
 
-  const envPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'orah2026admin';
+  const envPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'dario@jesusyouthpala';
 
-  const refreshPendingQueue = async (pwd?: string) => {
+  const refreshPendingQueue = useCallback(async (pwd?: string) => {
     try {
       const res = await fetch('/api/admin/pending', {
         headers: {
-          'x-admin-password': pwd || passwordInput.trim(),
+          'x-admin-password': pwd || passwordInput.trim() || envPassword,
         },
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.contributions)) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('orah_contributions_v1', JSON.stringify(data.contributions));
-        }
+        setServerContributions(data.contributions);
       }
     } catch (e) {
       console.warn('Failed to fetch pending queue from server', e);
     }
-  };
+  }, [passwordInput, envPassword]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,6 +84,7 @@ function AdminDashboardContent() {
     setIsProcessing(id);
     try {
       await verifyContribution(id);
+      await refreshPendingQueue();
     } finally {
       setIsProcessing(null);
     }
@@ -90,6 +93,7 @@ function AdminDashboardContent() {
   const handleReject = async (id: string) => {
     if (confirm('Are you sure you want to reject this contribution?')) {
       await rejectContribution(id);
+      await refreshPendingQueue();
     }
   };
 
@@ -108,6 +112,21 @@ function AdminDashboardContent() {
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 2500);
   };
+
+  // Derive active lists combining server database rows with local store
+  const displayContributions = serverContributions.length > 0 ? serverContributions : [...pendingContributions, ...verifiedContributions];
+
+  const pendingList = useMemo(() => {
+    return displayContributions.filter((c) => c.status === 'pending');
+  }, [displayContributions]);
+
+  const verifiedList = useMemo(() => {
+    return displayContributions.filter((c) => c.status === 'verified');
+  }, [displayContributions]);
+
+  const prayerList = useMemo(() => {
+    return displayContributions.filter((c) => c.prayer_note && c.prayer_note.trim().length > 0);
+  }, [displayContributions]);
 
   return (
     <div className="min-h-screen bg-[#07080b] text-neutral-100 flex flex-col selection:bg-amber-500/30 selection:text-amber-200">
@@ -128,12 +147,12 @@ function AdminDashboardContent() {
               <span className="text-base font-bold tracking-tight text-white font-serif">
                 ORAH 2026
               </span>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 px-2 py-0.5 rounded border border-white/10 bg-white/[0.02]">
-                Control Room
+              <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400 px-2 py-0.5 rounded border border-amber-500/20 bg-amber-500/5">
+                Admin Control Room
               </span>
             </div>
             <p className="text-[11px] text-neutral-500">
-              Payment Verification & Administration
+              Payment Verification & Confidential Prayer Intentions
             </p>
           </div>
         </div>
@@ -174,7 +193,7 @@ function AdminDashboardContent() {
             <div className="space-y-1">
               <h2 className="text-xl font-bold font-serif text-white">Organizer Authentication</h2>
               <p className="text-xs text-neutral-400">
-                Enter the administration key configured in your environment to manage payments.
+                Enter the administration key configured in your environment to manage payments and view prayer requests.
               </p>
             </div>
 
@@ -204,7 +223,7 @@ function AdminDashboardContent() {
             </form>
 
             <p className="text-[11px] text-neutral-500 font-mono">
-              URL: /admin • Password in .env: NEXT_PUBLIC_ADMIN_PASSWORD
+              Password configured in .env.local: NEXT_PUBLIC_ADMIN_PASSWORD
             </p>
           </div>
         ) : (
@@ -218,7 +237,7 @@ function AdminDashboardContent() {
                   <Clock className="w-3.5 h-3.5" />
                 </div>
                 <div className="text-2xl font-bold font-serif text-white mt-1">
-                  {pendingContributions.length}
+                  {pendingList.length}
                 </div>
               </div>
 
@@ -244,18 +263,18 @@ function AdminDashboardContent() {
 
               <div className="p-4 rounded-xl border border-white/[0.07] bg-white/[0.02]">
                 <div className="text-[11px] font-mono text-purple-400 uppercase tracking-wider flex items-center justify-between">
-                  <span>Fund Progress</span>
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Prayer Intentions</span>
+                  <HeartHandshake className="w-3.5 h-3.5" />
                 </div>
                 <div className="text-2xl font-bold font-serif text-purple-300 mt-1">
-                  {stats.percentage}%
+                  {prayerList.length}
                 </div>
               </div>
             </div>
 
             {/* Navigation Tabs */}
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => setActiveTab('pending')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
@@ -265,7 +284,7 @@ function AdminDashboardContent() {
                   }`}
                 >
                   <Clock className="w-3.5 h-3.5" />
-                  <span>Pending Queue ({pendingContributions.length})</span>
+                  <span>Pending Queue ({pendingList.length})</span>
                 </button>
 
                 <button
@@ -277,7 +296,19 @@ function AdminDashboardContent() {
                   }`}
                 >
                   <CheckCircle className="w-3.5 h-3.5" />
-                  <span>Verified History ({verifiedContributions.length})</span>
+                  <span>Verified ({verifiedList.length})</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('prayers')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
+                    activeTab === 'prayers'
+                      ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <HeartHandshake className="w-3.5 h-3.5" />
+                  <span>Prayer Intentions ({prayerList.length})</span>
                 </button>
 
                 <button
@@ -289,28 +320,28 @@ function AdminDashboardContent() {
                   }`}
                 >
                   <Settings2 className="w-3.5 h-3.5" />
-                  <span>Event Settings</span>
+                  <span>Settings</span>
                 </button>
 
                 <button
                   onClick={() => setActiveTab('testing')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
                     activeTab === 'testing'
-                      ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                      ? 'bg-neutral-800 text-neutral-300 border border-white/10'
                       : 'text-neutral-400 hover:text-white'
                   }`}
                 >
                   <Zap className="w-3.5 h-3.5" />
-                  <span>Testing Sandbox</span>
+                  <span>Sandbox</span>
                 </button>
               </div>
 
-              {(activeTab === 'pending' || activeTab === 'verified') && (
+              {(activeTab === 'pending' || activeTab === 'verified' || activeTab === 'prayers') && (
                 <div className="relative w-48 sm:w-64">
                   <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500" />
                   <input
                     type="text"
-                    placeholder="Filter by UTR, name..."
+                    placeholder="Search UTR, name, prayer..."
                     value={searchFilter}
                     onChange={(e) => setSearchFilter(e.target.value)}
                     className="w-full pl-8 pr-3 py-1 text-xs bg-white/[0.04] border border-white/10 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
@@ -321,82 +352,96 @@ function AdminDashboardContent() {
 
             {/* TAB 1: PENDING UTR QUEUE */}
             {activeTab === 'pending' && (
-              <div className="space-y-3">
-                {pendingContributions.length === 0 ? (
+              <div className="space-y-4">
+                {pendingList.length === 0 ? (
                   <div className="text-center py-20 border border-white/[0.06] rounded-2xl bg-white/[0.01] space-y-2 text-neutral-400">
                     <CheckCircle className="w-8 h-8 text-emerald-400/80 mx-auto" />
-                    <p className="text-sm font-semibold text-white">Pending Queue Empty</p>
+                    <p className="text-sm font-semibold text-white">No Pending Payments</p>
                     <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-                      All submitted payments have been reviewed. When a user submits their 12-digit UTR on the public wall, it will appear here for verification.
+                      All submitted payments have been verified. When a user submits their 12-digit UTR on the public wall, it will appear here immediately.
                     </p>
                   </div>
                 ) : (
-                  pendingContributions
+                  pendingList
                     .filter((c) => {
                       if (!searchFilter) return true;
                       const q = searchFilter.toLowerCase();
                       return (
                         c.contributor_name.toLowerCase().includes(q) ||
                         (c.upi_transaction_id && c.upi_transaction_id.toLowerCase().includes(q)) ||
-                        c.reference_id.toLowerCase().includes(q)
+                        c.reference_id.toLowerCase().includes(q) ||
+                        (c.prayer_note && c.prayer_note.toLowerCase().includes(q))
                       );
                     })
                     .map((item) => (
                       <div
                         key={item.id}
-                        className="p-5 rounded-xl border border-amber-500/20 bg-white/[0.02] hover:border-amber-500/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                        className="p-5 rounded-xl border border-amber-500/20 bg-white/[0.02] hover:border-amber-500/40 transition-all flex flex-col gap-3"
                       >
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2.5 flex-wrap">
-                            <span className="font-bold text-base text-white">
-                              {item.contributor_name || 'Anonymous Supporter'}
-                            </span>
-                            <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-300">
-                              ₹{item.amount.toLocaleString('en-IN')}
-                            </span>
-                            <span className="text-[11px] font-mono text-neutral-500">
-                              Ref: {item.reference_id}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-3 text-xs text-neutral-300 flex-wrap">
-                            <div className="flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded border border-white/10 font-mono">
-                              <span className="text-neutral-500 font-sans">Bank UTR:</span>
-                              <span className="text-emerald-400 font-bold tracking-wider">
-                                {item.upi_transaction_id || 'N/A'}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                              <span className="font-bold text-base text-white">
+                                {item.contributor_name || 'Anonymous Supporter'}
+                              </span>
+                              <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-300">
+                                ₹{item.amount.toLocaleString('en-IN')}
+                              </span>
+                              <span className="text-[11px] font-mono text-neutral-500">
+                                Ref: {item.reference_id}
                               </span>
                             </div>
-                            <span className="text-neutral-500 text-[11px]">
-                              Submitted {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
+
+                            <div className="flex items-center gap-3 text-xs text-neutral-300 flex-wrap">
+                              <div className="flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded border border-white/10 font-mono">
+                                <span className="text-neutral-500 font-sans">Bank UTR:</span>
+                                <span className="text-emerald-400 font-bold tracking-wider">
+                                  {item.upi_transaction_id || 'N/A'}
+                                </span>
+                              </div>
+                              <span className="text-neutral-500 text-[11px]">
+                                Submitted {new Date(item.created_at).toLocaleString()}
+                              </span>
+                            </div>
                           </div>
 
-                          {item.prayer_note && (
-                            <p className="text-xs italic text-neutral-400 bg-black/20 p-2 rounded border border-white/5">
+                          {/* Verification Action */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => handleVerify(item.id)}
+                              disabled={isProcessing === item.id}
+                              className="px-4 py-2 rounded-lg font-semibold text-xs text-neutral-950 bg-gradient-to-r from-emerald-400 to-emerald-500 hover:brightness-105 shadow-[0_0_15px_rgba(16,185,129,0.25)] transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>{isProcessing === item.id ? 'Reflecting...' : 'Verify & Reflect Live'}</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleReject(item.id)}
+                              className="p-2 rounded-lg text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                              title="Reject UTR"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Confidential Prayer Request Card */}
+                        {item.prayer_note ? (
+                          <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/[0.04] space-y-1 mt-1">
+                            <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-amber-400 font-semibold">
+                              <HeartHandshake className="w-3.5 h-3.5" />
+                              <span>Confidential Prayer Request (Visible to Admin Only)</span>
+                            </div>
+                            <p className="text-xs text-neutral-200 italic font-serif leading-relaxed">
                               &ldquo;{item.prayer_note}&rdquo;
                             </p>
-                          )}
-                        </div>
-
-                        {/* Verification Action */}
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => handleVerify(item.id)}
-                            disabled={isProcessing === item.id}
-                            className="px-4 py-2 rounded-lg font-semibold text-xs text-neutral-950 bg-gradient-to-r from-emerald-400 to-emerald-500 hover:brightness-105 shadow-[0_0_15px_rgba(16,185,129,0.25)] transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" />
-                            <span>{isProcessing === item.id ? 'Reflecting...' : 'Verify & Reflect Live'}</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleReject(item.id)}
-                            className="p-2 rounded-lg text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                            title="Reject UTR"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </div>
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-neutral-500 italic mt-0.5">
+                            No prayer note attached with this contribution.
+                          </div>
+                        )}
                       </div>
                     ))
                 )}
@@ -405,36 +450,99 @@ function AdminDashboardContent() {
 
             {/* TAB 2: VERIFIED CONTRIBUTIONS */}
             {activeTab === 'verified' && (
-              <div className="space-y-2">
-                {verifiedContributions.map((item) => (
+              <div className="space-y-3">
+                {verifiedList.map((item) => (
                   <div
                     key={item.id}
-                    className="p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.01] flex items-center justify-between text-xs"
+                    className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.01] flex flex-col gap-2.5 text-xs"
                   >
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-white">{item.contributor_name}</span>
-                        <span className="text-emerald-400 font-mono font-bold">
-                          ₹{item.amount.toLocaleString('en-IN')}
-                        </span>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-white text-sm">{item.contributor_name}</span>
+                          <span className="text-emerald-400 font-mono font-bold">
+                            ₹{item.amount.toLocaleString('en-IN')}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                            Verified Live
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-neutral-500 flex items-center gap-2 font-mono flex-wrap">
+                          <span>Ref: {item.reference_id}</span>
+                          <span>•</span>
+                          <span>UTR: {item.upi_transaction_id || 'Direct'}</span>
+                          <span>•</span>
+                          <span className="text-amber-400">{item.revealed_tile_ids?.length || 0} tiles unlocked</span>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-neutral-500 flex items-center gap-2 font-mono">
-                        <span>Ref: {item.reference_id}</span>
-                        <span>•</span>
-                        <span>UTR: {item.upi_transaction_id || 'Direct'}</span>
-                        <span>•</span>
-                        <span className="text-amber-400">{item.revealed_tile_ids?.length || 0} tiles unlocked</span>
-                      </div>
+                      <span className="text-[11px] text-neutral-500 font-mono">
+                        {item.verified_at ? new Date(item.verified_at).toLocaleString() : 'Verified'}
+                      </span>
                     </div>
-                    <span className="text-[11px] text-neutral-500">
-                      {item.verified_at ? new Date(item.verified_at).toLocaleDateString() : 'Verified'}
-                    </span>
+
+                    {/* Show prayer note for verified contributions as well */}
+                    {item.prayer_note && (
+                      <div className="p-3 rounded-lg border border-purple-500/20 bg-purple-500/[0.03] text-neutral-300 text-xs italic">
+                        <span className="text-purple-400 font-mono text-[10px] uppercase font-bold not-italic block mb-0.5">
+                          Prayer Intention:
+                        </span>
+                        &ldquo;{item.prayer_note}&rdquo;
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
 
-            {/* TAB 3: SETTINGS */}
+            {/* TAB 3: DEDICATED PRAYER INTENTIONS WALL */}
+            {activeTab === 'prayers' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl border border-purple-500/20 bg-purple-500/[0.03] space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-serif font-bold text-purple-300">
+                    <HeartHandshake className="w-4 h-4" />
+                    <span>ORAH 2026 Community Prayer Sanctuary</span>
+                  </div>
+                  <p className="text-xs text-neutral-400">
+                    All prayer intentions submitted by supporters during contributions. These intentions are confidential and only visible in this control room so that intercessory teams can pray for each intention.
+                  </p>
+                </div>
+
+                {prayerList.length === 0 ? (
+                  <div className="text-center py-16 text-neutral-500 text-xs">
+                    No prayer intentions submitted yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {prayerList.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-4 rounded-xl border border-white/[0.08] bg-white/[0.02] space-y-2 relative group hover:border-purple-500/30 transition-colors"
+                      >
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-bold text-white font-serif">{item.contributor_name}</span>
+                          <span className="text-neutral-500 font-mono">
+                            {new Date(item.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-neutral-200 font-serif italic leading-relaxed pt-1 border-t border-white/[0.04]">
+                          &ldquo;{item.prayer_note}&rdquo;
+                        </p>
+
+                        <div className="flex items-center justify-between text-[10px] font-mono text-neutral-500 pt-1">
+                          <span>Contribution: ₹{item.amount.toLocaleString('en-IN')}</span>
+                          <span className={item.status === 'verified' ? 'text-emerald-400' : 'text-amber-400'}>
+                            {item.status.toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 4: SETTINGS */}
             {activeTab === 'settings' && (
               <form onSubmit={handleSaveSettings} className="space-y-5 max-w-lg border border-white/[0.08] p-6 rounded-2xl bg-white/[0.01]">
                 <div>
@@ -493,7 +601,7 @@ function AdminDashboardContent() {
               </form>
             )}
 
-            {/* TAB 4: SANDBOX & TESTING */}
+            {/* TAB 5: SANDBOX & TESTING */}
             {activeTab === 'testing' && (
               <div className="space-y-6">
                 <div className="p-6 rounded-2xl border border-white/[0.08] bg-white/[0.01] space-y-3">
@@ -562,4 +670,3 @@ export default function AdminPage() {
     </WallProvider>
   );
 }
-

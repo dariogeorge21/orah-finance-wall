@@ -9,8 +9,7 @@ import {
   ExternalLink, 
   Clock, 
   HeartHandshake, 
-  Share2, 
-  AlertCircle
+  Share2
 } from 'lucide-react';
 import { useWall } from '@/lib/store';
 import { PaidSlider } from './PaidSlider';
@@ -40,9 +39,6 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copiedVpa, setCopiedVpa] = useState<boolean>(false);
   const [copiedRef, setCopiedRef] = useState<boolean>(false);
-  const [hasSlidPaid, setHasSlidPaid] = useState<boolean>(false);
-  const [utr, setUtr] = useState<string>('');
-  const [utrError, setUtrError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submittedRef, setSubmittedRef] = useState<string>('');
   const [timeLeft, setTimeLeft] = useState<number>(600);
@@ -53,9 +49,6 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
       setAmount(initialAmount);
       setIsCustom(false);
       setCustomAmountInput('');
-      setHasSlidPaid(false);
-      setUtr('');
-      setUtrError('');
       setIsSubmitting(false);
       setTimeLeft(600);
       const randRef = `ORAH-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
@@ -125,48 +118,22 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
     }
   };
 
-  const handleUtrChange = (val: string) => {
-    // Strictly filter to letters and numbers only, auto-converted to uppercase
-    const clean = val.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-    setUtr(clean);
-    if (utrError) setUtrError('');
-  };
-
-  const handleUtrSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanUtr = utr.trim().toUpperCase();
-    if (!cleanUtr) {
-      setUtrError('Please enter your 12-digit UPI Reference Number / Bank UTR.');
-      return;
-    }
-
-    // Strict character + number set validation: [A-Z0-9] only, 8-24 characters
-    const STRICT_UTR_REGEX = /^[A-Z0-9]{8,24}$/;
-    if (!/^[A-Z0-9]+$/.test(cleanUtr)) {
-      setUtrError('Strict character set: Only uppercase letters (A-Z) and numbers (0-9) are allowed.');
-      return;
-    }
-    if (cleanUtr.length < 8 || cleanUtr.length > 24) {
-      setUtrError('UTR / Transaction ID must be between 8 and 24 characters (typically 12 digits).');
-      return;
-    }
-
+  const handleConfirmPayment = async () => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
-    setUtrError('');
 
     try {
       const created = await submitPendingContribution({
         contributorName: isAnonymous ? 'Anonymous Supporter' : contributorName,
         amount,
-        upiTransactionId: cleanUtr,
         prayerNote,
       });
 
       setSubmittedRef(created.reference_id);
       setStep('submitted');
     } catch (err) {
-      console.error(err);
-      setUtrError('Submission failed. Please try again.');
+      console.error('Submission failed', err);
+      alert('Submission failed. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -372,66 +339,27 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
               </a>
             </div>
 
-            <PaidSlider
-              isConfirmed={hasSlidPaid}
-              onConfirmed={() => setHasSlidPaid(true)}
-            />
+            {/* Confirmation Actions */}
+            <div className="space-y-3 pt-2">
+              <PaidSlider
+                isConfirmed={isSubmitting}
+                onConfirmed={handleConfirmPayment}
+              />
 
-            {hasSlidPaid && (
-              <form onSubmit={handleUtrSubmit} className="space-y-3 animate-in fade-in duration-300">
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[10px] font-mono tracking-widest uppercase text-neutral-400">
-                      UPI Reference / UTR Number
-                    </label>
-                    <span className="text-[10px] font-mono">
-                      {utr.length > 0 ? (
-                        <span className={utr.length === 12 ? 'text-emerald-400 font-bold' : utr.length >= 8 ? 'text-amber-400' : 'text-neutral-500'}>
-                          {utr.length} {utr.length === 12 ? '(Standard 12 Digits ✓)' : 'chars'}
-                        </span>
-                      ) : (
-                        <span className="text-neutral-500 font-mono">Strict [A-Z, 0-9]</span>
-                      )}
-                    </span>
-                  </div>
+              <button
+                type="button"
+                onClick={handleConfirmPayment}
+                disabled={isSubmitting}
+                className="w-full py-3.5 px-6 rounded-xl font-semibold text-xs sm:text-sm text-neutral-950 bg-gradient-to-r from-emerald-400 via-emerald-300 to-emerald-500 hover:brightness-105 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+              >
+                <Check className="w-4 h-4 text-neutral-950 stroke-[2.5]" />
+                <span>{isSubmitting ? 'Recording Contribution...' : `I Have Paid ₹${amount.toLocaleString('en-IN')} via UPI`}</span>
+              </button>
 
-                  <div className="relative">
-                    <input
-                      type="text"
-                      maxLength={24}
-                      placeholder="e.g. 428901239845 or AXIS12345678"
-                      value={utr}
-                      onChange={(e) => handleUtrChange(e.target.value)}
-                      autoFocus
-                      className="w-full rounded-xl bg-white/[0.04] pl-4 pr-16 py-2.5 text-sm font-mono tracking-wider text-white border border-amber-500/40 placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-amber-500 uppercase"
-                    />
-                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-mono text-neutral-400 bg-black/40 px-2 py-0.5 rounded border border-white/10">
-                      <span>A-Z 0-9</span>
-                    </div>
-                  </div>
-
-                  {utrError && (
-                    <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      <span>{utrError}</span>
-                    </p>
-                  )}
-
-                  <div className="mt-1.5 flex items-center justify-between text-[11px] text-neutral-500">
-                    <span>Strict set: Uppercase letters &amp; numbers only</span>
-                    <span className="italic">12-digit UTR on receipt</span>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-3 px-6 rounded-xl font-semibold text-xs text-neutral-950 bg-gradient-to-r from-emerald-400 to-emerald-500 hover:brightness-105 shadow-[0_0_15px_rgba(16,185,129,0.25)] transition-all disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Submitting...' : 'Submit for Verification'}
-                </button>
-              </form>
-            )}
+              <p className="text-[11px] text-center text-neutral-500 font-light leading-relaxed">
+                Once confirmed, our finance team will verify the payment against the bank ledger and reveal your tiles on the master canvas.
+              </p>
+            </div>
 
             <div className="flex justify-between items-center text-[11px] text-neutral-500 pt-1">
               <button

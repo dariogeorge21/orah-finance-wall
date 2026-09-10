@@ -416,7 +416,7 @@ function AdminDashboardContent() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-4 rounded-xl border border-white/[0.07] bg-white/[0.02]">
                 <div className="text-[11px] font-mono text-amber-400 uppercase tracking-wider flex items-center justify-between">
-                  <span>Pending UTRs</span>
+                  <span>Pending Approvals</span>
                   <Clock className="w-3.5 h-3.5" />
                 </div>
                 <div className="text-2xl font-bold font-serif text-white mt-1">
@@ -528,7 +528,7 @@ function AdminDashboardContent() {
                     <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500" />
                     <input
                       type="text"
-                      placeholder="Search UTR, name, prayer..."
+                      placeholder="Search contributor, reference, prayer..."
                       value={searchFilter}
                       onChange={(e) => setSearchFilter(e.target.value)}
                       className="w-full pl-8 pr-3 py-1 text-xs bg-white/[0.04] border border-white/10 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
@@ -538,15 +538,15 @@ function AdminDashboardContent() {
               )}
             </div>
 
-            {/* TAB 1: PENDING UTR QUEUE */}
+            {/* TAB 1: PENDING APPROVALS QUEUE */}
             {activeTab === 'pending' && (
               <div className="space-y-4">
                 {pendingList.length === 0 ? (
                   <div className="text-center py-20 border border-white/[0.06] rounded-2xl bg-white/[0.01] space-y-2 text-neutral-400">
                     <CheckCircle className="w-8 h-8 text-emerald-400/80 mx-auto" />
-                    <p className="text-sm font-semibold text-white">No Pending Payments</p>
+                    <p className="text-sm font-semibold text-white">No Pending Contributions</p>
                     <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-                      All submitted payments have been verified. When a user submits their 12-digit UTR on the public wall, it will appear here immediately.
+                      All submitted contributions have been verified. When a supporter completes payment on the live wall, it will appear here immediately for manual verification.
                     </p>
                   </div>
                 ) : (
@@ -556,8 +556,8 @@ function AdminDashboardContent() {
                       const q = searchFilter.toLowerCase();
                       return (
                         c.contributor_name.toLowerCase().includes(q) ||
-                        (c.upi_transaction_id && c.upi_transaction_id.toLowerCase().includes(q)) ||
                         c.reference_id.toLowerCase().includes(q) ||
+                        (c.upi_transaction_id && c.upi_transaction_id.toLowerCase().includes(q)) ||
                         (c.prayer_note && c.prayer_note.toLowerCase().includes(q))
                       );
                     })
@@ -582,10 +582,15 @@ function AdminDashboardContent() {
 
                             <div className="flex items-center gap-3 text-xs text-neutral-300 flex-wrap">
                               <div className="flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded border border-white/10 font-mono">
-                                <span className="text-neutral-500 font-sans">Bank UTR:</span>
-                                <span className="text-emerald-400 font-bold tracking-wider">
-                                  {item.upi_transaction_id || 'N/A'}
+                                <span className="text-neutral-500 font-sans">Payment:</span>
+                                <span className="text-amber-300 font-medium tracking-wide">
+                                  Direct UPI
                                 </span>
+                                {item.upi_transaction_id && (
+                                  <span className="text-neutral-500 text-[10px] ml-1 font-mono">
+                                    ({item.upi_transaction_id})
+                                  </span>
+                                )}
                               </div>
                               <span className="text-neutral-500 text-[11px]">
                                 Submitted {new Date(item.created_at).toLocaleString()}
@@ -607,7 +612,7 @@ function AdminDashboardContent() {
                             <button
                               onClick={() => handleReject(item.id)}
                               className="p-2 rounded-lg text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                              title="Reject UTR"
+                              title="Reject Contribution"
                             >
                               <XCircle className="w-4 h-4" />
                             </button>
@@ -678,7 +683,7 @@ function AdminDashboardContent() {
                         <div className="text-[11px] text-neutral-500 flex items-center gap-2 font-mono flex-wrap">
                           <span>Ref: {item.reference_id}</span>
                           <span>•</span>
-                          <span>UTR: {item.upi_transaction_id || 'Direct'}</span>
+                          <span>Direct UPI</span>
                           <span>•</span>
                           <span className="text-amber-400">{item.revealed_tile_ids?.length || 0} tiles unlocked</span>
                         </div>

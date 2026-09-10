@@ -21,7 +21,7 @@ interface WallContextType {
   submitPendingContribution: (params: {
     contributorName: string;
     amount: number;
-    upiTransactionId: string;
+    upiTransactionId?: string;
     prayerNote?: string;
   }) => Promise<Contribution>;
   verifyContribution: (id: string) => Promise<void>;
@@ -295,13 +295,15 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
   const submitPendingContribution = useCallback(async (params: {
     contributorName: string;
     amount: number;
-    upiTransactionId: string;
+    upiTransactionId?: string;
     prayerNote?: string;
   }): Promise<Contribution> => {
     const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
     const referenceId = `ORAH-${Date.now().toString(36).toUpperCase()}-${randomSuffix}`;
 
-    const cleanUtr = params.upiTransactionId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const cleanUtr = params.upiTransactionId
+      ? params.upiTransactionId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+      : undefined;
 
     let newContrib: Contribution = {
       id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `contrib-${Date.now()}-${randomSuffix}`,
@@ -452,11 +454,9 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
 
   // Quick simulation helper for admin testing
   const simulateContribution = useCallback(async (amount: number, name?: string) => {
-    const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
     const mockPending = await submitPendingContribution({
       contributorName: name || `Supporter #${Math.floor(100 + Math.random() * 900)}`,
       amount,
-      upiTransactionId: `${Math.floor(100000000000 + Math.random() * 900000000000)}`,
       prayerNote: 'Simulated contribution',
     });
 

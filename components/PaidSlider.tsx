@@ -114,7 +114,7 @@ export function PaidSlider({ onConfirmed, isConfirmed = false }: PaidSliderProps
           {confirmed ? (
             <span className="text-sm font-semibold text-emerald-300 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              Payment Confirmed! Enter UTR Below
+              Payment Confirmed! Submitting...
             </span>
           ) : (
             <span

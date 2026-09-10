@@ -1,0 +1,565 @@
+'use client';
+
+import React, { useState } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
+import { 
+  Lock, 
+  CheckCircle, 
+  XCircle, 
+  Clock, 
+  ShieldCheck, 
+  Settings2, 
+  RotateCcw, 
+  Zap, 
+  LogOut,
+  Search,
+  ArrowLeft,
+  DollarSign,
+  Eye,
+  Sparkles
+} from 'lucide-react';
+import { WallProvider, useWall } from '@/lib/store';
+
+function AdminDashboardContent() {
+  const { 
+    settings, 
+    pendingContributions, 
+    verifiedContributions, 
+    verifyContribution, 
+    rejectContribution, 
+    updateSettings, 
+    simulateContribution, 
+    resetWall,
+    stats
+  } = useWall();
+
+  const [passwordInput, setPasswordInput] = useState<string>('');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'pending' | 'verified' | 'settings' | 'testing'>('pending');
+  const [searchFilter, setSearchFilter] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState<string | null>(null);
+
+  // Settings state
+  const [targetInput, setTargetInput] = useState<string>(String(settings.target_amount));
+  const [vpaInput, setVpaInput] = useState<string>(settings.upi_vpa);
+  const [payeeInput, setPayeeInput] = useState<string>(settings.upi_payee_name);
+  const [settingsSaved, setSettingsSaved] = useState<boolean>(false);
+
+  const envPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'orah2026admin';
+
+  const refreshPendingQueue = async (pwd?: string) => {
+    try {
+      const res = await fetch('/api/admin/pending', {
+        headers: {
+          'x-admin-password': pwd || passwordInput.trim(),
+        },
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.contributions)) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('orah_contributions_v1', JSON.stringify(data.contributions));
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch pending queue from server', e);
+    }
+  };
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passwordInput.trim() === envPassword) {
+      setIsAuthenticated(true);
+      setAuthError('');
+      refreshPendingQueue(passwordInput.trim());
+    } else {
+      setAuthError('Incorrect password. Please verify the admin credentials.');
+    }
+  };
+
+  const handleVerify = async (id: string) => {
+    setIsProcessing(id);
+    try {
+      await verifyContribution(id);
+    } finally {
+      setIsProcessing(null);
+    }
+  };
+
+  const handleReject = async (id: string) => {
+    if (confirm('Are you sure you want to reject this contribution?')) {
+      await rejectContribution(id);
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const newTarget = Number(targetInput);
+    if (isNaN(newTarget) || newTarget <= 0) {
+      alert('Please enter a valid target amount');
+      return;
+    }
+    await updateSettings({
+      target_amount: newTarget,
+      upi_vpa: vpaInput.trim(),
+      upi_payee_name: payeeInput.trim(),
+    });
+    setSettingsSaved(true);
+    setTimeout(() => setSettingsSaved(false), 2500);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#07080b] text-neutral-100 flex flex-col selection:bg-amber-500/30 selection:text-amber-200">
+      {/* Top Header */}
+      <header className="w-full px-6 sm:px-12 py-4 border-b border-white/[0.06] bg-[#07080b]/90 backdrop-blur-xl flex items-center justify-between">
+        <div className="flex items-center gap-3.5">
+          <div className="relative w-8 h-8 shrink-0">
+            <Image
+              src="/jyLogo.png"
+              alt="Jesus Youth Logo"
+              width={32}
+              height={32}
+              className="object-contain w-full h-full"
+            />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-base font-bold tracking-tight text-white font-serif">
+                ORAH 2026
+              </span>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-neutral-400 px-2 py-0.5 rounded border border-white/10 bg-white/[0.02]">
+                Control Room
+              </span>
+            </div>
+            <p className="text-[11px] text-neutral-500">
+              Payment Verification & Administration
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/"
+            className="text-xs text-neutral-400 hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>View Public Wall</span>
+          </Link>
+
+          {isAuthenticated && (
+            <button
+              onClick={() => {
+                setIsAuthenticated(false);
+                setPasswordInput('');
+              }}
+              className="p-1.5 rounded-lg text-neutral-500 hover:text-red-400 transition-colors"
+              title="Lock Session"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* Main Container */}
+      <main className="flex-1 max-w-6xl w-full mx-auto p-6 sm:p-10">
+        {!isAuthenticated ? (
+          /* LOGIN PROMPT */
+          <div className="max-w-md mx-auto my-16 p-8 rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-2xl shadow-2xl text-center space-y-6">
+            <div className="w-12 h-12 rounded-xl border border-amber-500/20 bg-amber-500/10 flex items-center justify-center mx-auto text-amber-400">
+              <Lock className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1">
+              <h2 className="text-xl font-bold font-serif text-white">Organizer Authentication</h2>
+              <p className="text-xs text-neutral-400">
+                Enter the administration key configured in your environment to manage payments.
+              </p>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-3">
+              <input
+                type="password"
+                placeholder="Enter admin password..."
+                value={passwordInput}
+                onChange={(e) => {
+                  setPasswordInput(e.target.value);
+                  if (authError) setAuthError('');
+                }}
+                autoFocus
+                className="w-full rounded-xl bg-white/[0.04] px-4 py-3 text-sm text-white border border-white/10 placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+              />
+
+              {authError && (
+                <p className="text-xs text-red-400 text-left">{authError}</p>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-3 px-6 rounded-xl font-semibold text-xs text-neutral-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-105 shadow-[0_0_20px_rgba(245,158,11,0.25)] transition-all"
+              >
+                Unlock Control Room
+              </button>
+            </form>
+
+            <p className="text-[11px] text-neutral-500 font-mono">
+              URL: /admin • Password in .env: NEXT_PUBLIC_ADMIN_PASSWORD
+            </p>
+          </div>
+        ) : (
+          /* AUTHENTICATED DASHBOARD */
+          <div className="space-y-8">
+            {/* Metric Overview Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 rounded-xl border border-white/[0.07] bg-white/[0.02]">
+                <div className="text-[11px] font-mono text-amber-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Pending UTRs</span>
+                  <Clock className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-2xl font-bold font-serif text-white mt-1">
+                  {pendingContributions.length}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-white/[0.07] bg-white/[0.02]">
+                <div className="text-[11px] font-mono text-emerald-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Verified Funds</span>
+                  <DollarSign className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-2xl font-bold font-serif text-emerald-300 mt-1">
+                  ₹{stats.totalRaised.toLocaleString('en-IN')}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-white/[0.07] bg-white/[0.02]">
+                <div className="text-[11px] font-mono text-cyan-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Revealed Tiles</span>
+                  <Eye className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-2xl font-bold font-serif text-cyan-300 mt-1">
+                  {stats.revealedTilesCount} / {stats.totalTiles}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border border-white/[0.07] bg-white/[0.02]">
+                <div className="text-[11px] font-mono text-purple-400 uppercase tracking-wider flex items-center justify-between">
+                  <span>Fund Progress</span>
+                  <Sparkles className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-2xl font-bold font-serif text-purple-300 mt-1">
+                  {stats.percentage}%
+                </div>
+              </div>
+            </div>
+
+            {/* Navigation Tabs */}
+            <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setActiveTab('pending')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
+                    activeTab === 'pending'
+                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Pending Queue ({pendingContributions.length})</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('verified')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
+                    activeTab === 'verified'
+                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>Verified History ({verifiedContributions.length})</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
+                    activeTab === 'settings'
+                      ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <Settings2 className="w-3.5 h-3.5" />
+                  <span>Event Settings</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('testing')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all flex items-center gap-1.5 ${
+                    activeTab === 'testing'
+                      ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                      : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Testing Sandbox</span>
+                </button>
+              </div>
+
+              {(activeTab === 'pending' || activeTab === 'verified') && (
+                <div className="relative w-48 sm:w-64">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500" />
+                  <input
+                    type="text"
+                    placeholder="Filter by UTR, name..."
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1 text-xs bg-white/[0.04] border border-white/10 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* TAB 1: PENDING UTR QUEUE */}
+            {activeTab === 'pending' && (
+              <div className="space-y-3">
+                {pendingContributions.length === 0 ? (
+                  <div className="text-center py-20 border border-white/[0.06] rounded-2xl bg-white/[0.01] space-y-2 text-neutral-400">
+                    <CheckCircle className="w-8 h-8 text-emerald-400/80 mx-auto" />
+                    <p className="text-sm font-semibold text-white">Pending Queue Empty</p>
+                    <p className="text-xs text-neutral-500 max-w-sm mx-auto">
+                      All submitted payments have been reviewed. When a user submits their 12-digit UTR on the public wall, it will appear here for verification.
+                    </p>
+                  </div>
+                ) : (
+                  pendingContributions
+                    .filter((c) => {
+                      if (!searchFilter) return true;
+                      const q = searchFilter.toLowerCase();
+                      return (
+                        c.contributor_name.toLowerCase().includes(q) ||
+                        (c.upi_transaction_id && c.upi_transaction_id.toLowerCase().includes(q)) ||
+                        c.reference_id.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-5 rounded-xl border border-amber-500/20 bg-white/[0.02] hover:border-amber-500/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="font-bold text-base text-white">
+                              {item.contributor_name || 'Anonymous Supporter'}
+                            </span>
+                            <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-300">
+                              ₹{item.amount.toLocaleString('en-IN')}
+                            </span>
+                            <span className="text-[11px] font-mono text-neutral-500">
+                              Ref: {item.reference_id}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-xs text-neutral-300 flex-wrap">
+                            <div className="flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded border border-white/10 font-mono">
+                              <span className="text-neutral-500 font-sans">Bank UTR:</span>
+                              <span className="text-emerald-400 font-bold tracking-wider">
+                                {item.upi_transaction_id || 'N/A'}
+                              </span>
+                            </div>
+                            <span className="text-neutral-500 text-[11px]">
+                              Submitted {new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+
+                          {item.prayer_note && (
+                            <p className="text-xs italic text-neutral-400 bg-black/20 p-2 rounded border border-white/5">
+                              &ldquo;{item.prayer_note}&rdquo;
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Verification Action */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => handleVerify(item.id)}
+                            disabled={isProcessing === item.id}
+                            className="px-4 py-2 rounded-lg font-semibold text-xs text-neutral-950 bg-gradient-to-r from-emerald-400 to-emerald-500 hover:brightness-105 shadow-[0_0_15px_rgba(16,185,129,0.25)] transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            <span>{isProcessing === item.id ? 'Reflecting...' : 'Verify & Reflect Live'}</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleReject(item.id)}
+                            className="p-2 rounded-lg text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            title="Reject UTR"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: VERIFIED CONTRIBUTIONS */}
+            {activeTab === 'verified' && (
+              <div className="space-y-2">
+                {verifiedContributions.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.01] flex items-center justify-between text-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white">{item.contributor_name}</span>
+                        <span className="text-emerald-400 font-mono font-bold">
+                          ₹{item.amount.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-neutral-500 flex items-center gap-2 font-mono">
+                        <span>Ref: {item.reference_id}</span>
+                        <span>•</span>
+                        <span>UTR: {item.upi_transaction_id || 'Direct'}</span>
+                        <span>•</span>
+                        <span className="text-amber-400">{item.revealed_tile_ids?.length || 0} tiles unlocked</span>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-neutral-500">
+                      {item.verified_at ? new Date(item.verified_at).toLocaleDateString() : 'Verified'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* TAB 3: SETTINGS */}
+            {activeTab === 'settings' && (
+              <form onSubmit={handleSaveSettings} className="space-y-5 max-w-lg border border-white/[0.08] p-6 rounded-2xl bg-white/[0.01]">
+                <div>
+                  <label className="block text-xs font-mono uppercase tracking-wider text-neutral-400 mb-1.5">
+                    Target Goal Amount (INR)
+                  </label>
+                  <input
+                    type="number"
+                    value={targetInput}
+                    onChange={(e) => setTargetInput(e.target.value)}
+                    className="w-full rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm text-white border border-white/10 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                  />
+                  <p className="mt-1 text-[11px] text-neutral-500">
+                    Changing this recalculates tile percentages across the reveal wall dynamically.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-mono uppercase tracking-wider text-neutral-400 mb-1.5">
+                    UPI Payee VPA / ID
+                  </label>
+                  <input
+                    type="text"
+                    value={vpaInput}
+                    onChange={(e) => setVpaInput(e.target.value)}
+                    className="w-full rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm text-white border border-white/10 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-mono uppercase tracking-wider text-neutral-400 mb-1.5">
+                    Payee Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={payeeInput}
+                    onChange={(e) => setPayeeInput(e.target.value)}
+                    className="w-full rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm text-white border border-white/10 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center gap-3">
+                  <button
+                    type="submit"
+                    className="py-2.5 px-6 rounded-xl font-semibold text-xs text-neutral-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-105 shadow-[0_0_15px_rgba(245,158,11,0.25)] transition-all"
+                  >
+                    Save Changes
+                  </button>
+                  {settingsSaved && (
+                    <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Configuration Saved
+                    </span>
+                  )}
+                </div>
+              </form>
+            )}
+
+            {/* TAB 4: SANDBOX & TESTING */}
+            {activeTab === 'testing' && (
+              <div className="space-y-6">
+                <div className="p-6 rounded-2xl border border-white/[0.08] bg-white/[0.01] space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-amber-300">
+                    <Zap className="w-4 h-4" />
+                    <span>Instant Live Simulation</span>
+                  </div>
+                  <p className="text-xs text-neutral-400">
+                    Trigger a verified contribution directly to test the fluid reservoir splash and weighted tile unmasking on the public wall:
+                  </p>
+                  <div className="flex flex-wrap gap-3 pt-1">
+                    <button
+                      onClick={() => simulateContribution(500, 'Test Contributor (₹500)')}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-all"
+                    >
+                      + Simulate ₹500
+                    </button>
+                    <button
+                      onClick={() => simulateContribution(2000, 'Youth Fellowship (₹2,000)')}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-all"
+                    >
+                      + Simulate ₹2,000
+                    </button>
+                    <button
+                      onClick={() => simulateContribution(10000, 'Grand Benefactor (₹10,000)')}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-all"
+                    >
+                      + Simulate ₹10,000 (Major Splash)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-2xl border border-red-500/20 bg-red-950/10 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-bold text-red-400">
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Reset Reveal Wall</span>
+                  </div>
+                  <p className="text-xs text-neutral-400">
+                    Restore the public reveal wall and liquid reservoir back to the initial seed state.
+                  </p>
+                  <button
+                    onClick={() => {
+                      if (confirm('Reset wall to initial demo state?')) {
+                        resetWall();
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-red-500/10 text-red-300 border border-red-500/30 hover:bg-red-500/20 transition-all flex items-center gap-1.5"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset Wall State</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <WallProvider>
+      <AdminDashboardContent />
+    </WallProvider>
+  );
+}
+

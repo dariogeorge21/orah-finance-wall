@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS: Settings = {
   target_amount: Number(process.env.NEXT_PUBLIC_DEFAULT_TARGET_AMOUNT) || 100000,
   upi_vpa: process.env.NEXT_PUBLIC_DEFAULT_UPI_VPA || '7838403506@rapl',
   upi_payee_name: process.env.NEXT_PUBLIC_DEFAULT_UPI_PAYEE || 'Dario George',
-  banner_image_url: '/orah-banner.svg',
+  banner_image_url: '/jesusAndChildren.jpg',
   grid_cols: 40,
   grid_rows: 24,
   is_completed: false,
@@ -160,6 +160,9 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
     if (savedSettings) {
       try {
         activeSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(savedSettings) };
+        if (activeSettings.banner_image_url === '/orah-banner.svg' || activeSettings.banner_image_url === '/orah-banner.jpg') {
+          activeSettings.banner_image_url = '/jesusAndChildren.jpg';
+        }
       } catch (e) {
         console.error('Failed to parse saved settings', e);
       }
@@ -187,6 +190,29 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
     if (isSupabaseConfigured && supabase) {
       setIsRealtimeConnected(true);
 
+      // Fetch active settings from Supabase
+      supabase
+        .from('settings')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data) {
+            setSettings(prev => ({ ...prev, ...data }));
+          }
+        });
+
+      // Fetch verified & pending contributions from Supabase
+      supabase
+        .from('contributions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setContributions(data);
+          }
+        });
+
       const channel = supabase
         .channel('public:contributions')
         .on(
@@ -213,7 +239,6 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
         .subscribe();
 
       return () => {
-        supabase.removeChannel(channel);
         if (supabase) {
           supabase.removeChannel(channel);
         }
@@ -407,17 +432,15 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      if (isSupabaseConfigured && supabase) {
-        supabase
-          .from('contributions')
-          .update({
-            status: 'verified',
-            verified_at: verifiedRecord.verified_at,
-            revealed_tile_ids: verifiedRecord.revealed_tile_ids,
-          })
-          .eq('id', id)
-          .then();
-      }
+      // Trigger server-side verification using service role API
+      fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-password': process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'dario@jesusyouthpala',
+        },
+        body: JSON.stringify({ contributionId: id, action: 'verify' }),
+      }).catch(err => console.warn('Server verify error', err));
 
       return prev.map(c => c.id === id ? verifiedRecord : c);
     });
@@ -427,9 +450,14 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
   const rejectContribution = useCallback(async (id: string) => {
     setContributions(prev => {
       const updated = prev.map(c => c.id === id ? { ...c, status: 'rejected' as const } : c);
-      if (isSupabaseConfigured && supabase) {
-        supabase.from('contributions').update({ status: 'rejected' }).eq('id', id).then();
-      }
+      fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-password': process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'dario@jesusyouthpala',
+        },
+        body: JSON.stringify({ contributionId: id, action: 'reject' }),
+      }).catch(err => console.warn('Server reject error', err));
       return updated;
     });
   }, []);

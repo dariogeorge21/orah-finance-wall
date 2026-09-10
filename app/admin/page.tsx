@@ -11,6 +11,7 @@ import {
   ShieldCheck, 
   Settings2, 
   RotateCcw, 
+  RotateCw,
   Zap, 
   LogOut,
   Search,
@@ -21,7 +22,8 @@ import {
   HeartHandshake,
   MessageSquare,
   Copy,
-  Check
+  Check,
+  Loader2
 } from 'lucide-react';
 import { WallProvider, useWall } from '@/lib/store';
 import { Contribution } from '@/lib/types';
@@ -41,6 +43,10 @@ function AdminDashboardContent() {
 
   const [passwordInput, setPasswordInput] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isCheckingSession, setIsCheckingSession] = useState<boolean>(true);
+  const [remainingHours, setRemainingHours] = useState<number>(96);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [lastRefreshedTime, setLastRefreshedTime] = useState<string>('Just now');
   const [authError, setAuthError] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'pending' | 'verified' | 'prayers' | 'settings' | 'testing'>('pending');
   const [searchFilter, setSearchFilter] = useState<string>('');
@@ -76,15 +82,80 @@ function AdminDashboardContent() {
     }
   }, [passwordInput, envPassword]);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passwordInput.trim() === envPassword) {
-      setIsAuthenticated(true);
-      setAuthError('');
-      refreshPendingQueue(passwordInput.trim());
-    } else {
-      setAuthError('Incorrect password. Please verify the admin credentials.');
+  // Check active 96-hour session cookie on mount
+  useEffect(() => {
+    fetch('/api/admin/auth/session')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.authenticated) {
+          setIsAuthenticated(true);
+          if (data.remainingHours) setRemainingHours(data.remainingHours);
+          refreshPendingQueue();
+        }
+      })
+      .catch((err) => console.warn('Session check failed', err))
+      .finally(() => setIsCheckingSession(false));
+  }, [refreshPendingQueue]);
+
+  // Background auto-refresh every 20 seconds when authenticated
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const interval = setInterval(() => {
+      refreshPendingQueue();
+      const now = new Date();
+      setLastRefreshedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, refreshPendingQueue]);
+
+  // Manual refresh trigger
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshPendingQueue();
+      const now = new Date();
+      setLastRefreshedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
     }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsProcessing('login');
+    setAuthError('');
+
+    try {
+      const res = await fetch('/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: passwordInput.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsAuthenticated(true);
+        setAuthError('');
+        setPasswordInput('');
+        setRemainingHours(96);
+        await refreshPendingQueue();
+      } else {
+        setAuthError(data.error || 'Incorrect password. Please verify the admin credentials.');
+      }
+    } catch {
+      setAuthError('Network connection failed while authenticating.');
+    } finally {
+      setIsProcessing(null);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.warn('Logout error', err);
+    }
+    setIsAuthenticated(false);
+    setPasswordInput('');
   };
 
   const handleVerify = async (id: string) => {
@@ -234,23 +305,44 @@ function AdminDashboardContent() {
           </Link>
 
           {isAuthenticated && (
-            <button
-              onClick={() => {
-                setIsAuthenticated(false);
-                setPasswordInput('');
-              }}
-              className="p-1.5 rounded-lg text-neutral-500 hover:text-red-400 transition-colors"
-              title="Lock Session"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            <>
+              {/* Refresh Requests Button */}
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="text-xs text-neutral-200 hover:text-white flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all active:scale-95 disabled:opacity-50"
+                title="Refresh requests, verified contributions, and prayer intentions"
+              >
+                <RotateCw className={`w-3.5 h-3.5 text-amber-400 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span>{isRefreshing ? 'Refreshing...' : 'Refresh Requests'}</span>
+              </button>
+
+              <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Session: {remainingHours}h active</span>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg text-neutral-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                title="Lock Session / Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </>
           )}
         </div>
       </header>
 
       {/* Main Container */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-6 sm:p-10">
-        {!isAuthenticated ? (
+        {isCheckingSession ? (
+          <div className="flex flex-col items-center justify-center py-32 space-y-3">
+            <Loader2 className="w-7 h-7 text-amber-400 animate-spin" />
+            <p className="text-xs text-neutral-400 font-mono">Restoring 96-hour admin session...</p>
+          </div>
+        ) : !isAuthenticated ? (
           /* LOGIN PROMPT */
           <div className="max-w-md mx-auto my-16 p-8 rounded-2xl border border-white/[0.08] bg-white/[0.02] backdrop-blur-2xl shadow-2xl text-center space-y-6">
             <div className="w-12 h-12 rounded-xl border border-amber-500/20 bg-amber-500/10 flex items-center justify-center mx-auto text-amber-400">
@@ -260,7 +352,7 @@ function AdminDashboardContent() {
             <div className="space-y-1">
               <h2 className="text-xl font-bold font-serif text-white">Organizer Authentication</h2>
               <p className="text-xs text-neutral-400">
-                Enter the administration key configured in your environment to manage payments and view prayer requests.
+                Sign in with the administration key. Your session will stay safely authenticated for up to 96 hours on this browser.
               </p>
             </div>
 
@@ -283,14 +375,22 @@ function AdminDashboardContent() {
 
               <button
                 type="submit"
-                className="w-full py-3 px-6 rounded-xl font-semibold text-xs text-neutral-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-105 shadow-[0_0_20px_rgba(245,158,11,0.25)] transition-all"
+                disabled={isProcessing === 'login'}
+                className="w-full py-3 px-6 rounded-xl font-semibold text-xs text-neutral-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-105 shadow-[0_0_20px_rgba(245,158,11,0.25)] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                Unlock Control Room
+                {isProcessing === 'login' ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-neutral-950" />
+                    <span>Authorizing (96h Session)...</span>
+                  </>
+                ) : (
+                  <span>Unlock Control Room (96h Session)</span>
+                )}
               </button>
             </form>
 
             <p className="text-[11px] text-neutral-500 font-mono">
-              Password configured in .env.local: NEXT_PUBLIC_ADMIN_PASSWORD
+              Signed session stays authenticated for 96 hours via secure middleware
             </p>
           </div>
         ) : (
@@ -404,15 +504,20 @@ function AdminDashboardContent() {
               </div>
 
               {(activeTab === 'pending' || activeTab === 'verified' || activeTab === 'prayers') && (
-                <div className="relative w-48 sm:w-64">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500" />
-                  <input
-                    type="text"
-                    placeholder="Search UTR, name, prayer..."
-                    value={searchFilter}
-                    onChange={(e) => setSearchFilter(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1 text-xs bg-white/[0.04] border border-white/10 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
-                  />
+                <div className="flex items-center gap-3">
+                  <span className="hidden sm:inline-block text-[10px] font-mono text-neutral-500">
+                    Synced: {lastRefreshedTime}
+                  </span>
+                  <div className="relative w-48 sm:w-64">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500" />
+                    <input
+                      type="text"
+                      placeholder="Search UTR, name, prayer..."
+                      value={searchFilter}
+                      onChange={(e) => setSearchFilter(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1 text-xs bg-white/[0.04] border border-white/10 rounded-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-1 focus:ring-amber-500/50"
+                    />
+                  </div>
                 </div>
               )}
             </div>

@@ -63,6 +63,15 @@ function AdminDashboardContent() {
   const [payeeInput, setPayeeInput] = useState<string>(settings.upi_payee_name);
   const [settingsSaved, setSettingsSaved] = useState<boolean>(false);
 
+  // Synchronize inputs when settings are loaded or updated from database
+  useEffect(() => {
+    if (settings) {
+      setTargetInput(String(settings.target_amount || '150000'));
+      setVpaInput(settings.upi_vpa || '');
+      setPayeeInput(settings.upi_payee_name || '');
+    }
+  }, [settings.target_amount, settings.upi_vpa, settings.upi_payee_name]);
+
   const envPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'dario@jesusyouthpala';
 
   const refreshPendingQueue = useCallback(async (pwd?: string) => {
@@ -113,6 +122,13 @@ function AdminDashboardContent() {
     setIsRefreshing(true);
     try {
       await refreshPendingQueue();
+      const res = await fetch('/api/settings');
+      const data = await res.json();
+      if (data?.settings) {
+        setTargetInput(String(data.settings.target_amount));
+        setVpaInput(data.settings.upi_vpa);
+        setPayeeInput(data.settings.upi_payee_name);
+      }
       const now = new Date();
       setLastRefreshedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     } finally {

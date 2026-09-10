@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       .eq('id', 1)
       .single();
 
-    const targetAmount = settings?.target_amount || Number(process.env.NEXT_PUBLIC_DEFAULT_TARGET_AMOUNT) || 150000;
+    const targetAmount = settings?.target_amount || 150000;
     const gridCols = settings?.grid_cols || 40;
     const gridRows = settings?.grid_rows || 24;
     const totalTiles = gridCols * gridRows;

@@ -24,10 +24,10 @@ export async function POST(req: NextRequest) {
     if (!existingSettings) {
       await supabaseAdmin.from('fw_settings').upsert({
         id: 1,
-        event_name: process.env.NEXT_PUBLIC_DEFAULT_EVENT_NAME || 'ORAH 2026',
-        target_amount: Number(process.env.NEXT_PUBLIC_DEFAULT_TARGET_AMOUNT) || 150000,
-        upi_vpa: process.env.NEXT_PUBLIC_DEFAULT_UPI_VPA || '7838403506@rapl',
-        upi_payee_name: process.env.NEXT_PUBLIC_DEFAULT_UPI_PAYEE || 'Dario George',
+        event_name: 'ORAH 2026',
+        target_amount: 150000,
+        upi_vpa: '7838403506@rapl',
+        upi_payee_name: 'Dario George',
         banner_image_url: '/jesusAndChildren.jpg',
         grid_cols: 40,
         grid_rows: 24,

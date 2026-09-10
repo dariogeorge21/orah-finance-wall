@@ -34,10 +34,10 @@ interface WallContextType {
 
 const DEFAULT_SETTINGS: Settings = {
   id: 1,
-  event_name: process.env.NEXT_PUBLIC_DEFAULT_EVENT_NAME || 'ORAH 2026',
-  target_amount: Number(process.env.NEXT_PUBLIC_DEFAULT_TARGET_AMOUNT) || 100000,
-  upi_vpa: process.env.NEXT_PUBLIC_DEFAULT_UPI_VPA || '7838403506@rapl',
-  upi_payee_name: process.env.NEXT_PUBLIC_DEFAULT_UPI_PAYEE || 'Dario George',
+  event_name: 'ORAH 2026',
+  target_amount: 150000,
+  upi_vpa: '7838403506@rapl',
+  upi_payee_name: 'Dario George',
   banner_image_url: '/jesusAndChildren.jpg',
   grid_cols: 40,
   grid_rows: 24,
@@ -105,11 +105,21 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
       setContributions([]);
     }
 
+    // Fetch authoritative settings directly from database API endpoint
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.settings) {
+          setSettings((prev) => ({ ...prev, ...data.settings }));
+        }
+      })
+      .catch((err) => console.warn('Failed to fetch settings from DB API', err));
+
     // Connect to Supabase Realtime if configured
     if (isSupabaseConfigured && supabase) {
       setIsRealtimeConnected(true);
 
-      // Fetch active settings from Supabase
+      // Fetch active settings from Supabase as well
       supabase
         .from('fw_settings')
         .select('*')
@@ -117,7 +127,7 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle()
         .then(({ data }) => {
           if (data) {
-            setSettings(prev => ({ ...prev, ...data }));
+            setSettings((prev) => ({ ...prev, ...data }));
           }
         });
 
@@ -135,7 +145,7 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
           }
         });
 
-      const channel = supabase
+      const contribChannel = supabase
         .channel('public:fw_contributions')
         .on(
           'postgres_changes',
@@ -145,14 +155,14 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
               const newRow = payload.new as Contribution;
               // Strip prayer_note on public client for privacy
               const sanitizedRow = { ...newRow, prayer_note: undefined };
-              setContributions(prev => {
-                if (prev.some(c => c.id === sanitizedRow.id)) return prev;
+              setContributions((prev) => {
+                if (prev.some((c) => c.id === sanitizedRow.id)) return prev;
                 return [sanitizedRow, ...prev];
               });
             } else if (payload.eventType === 'UPDATE') {
               const updatedRow = payload.new as Contribution;
               const sanitizedRow = { ...updatedRow, prayer_note: undefined };
-              setContributions(prev => prev.map(c => c.id === sanitizedRow.id ? sanitizedRow : c));
+              setContributions((prev) => prev.map((c) => (c.id === sanitizedRow.id ? sanitizedRow : c)));
               if (updatedRow.status === 'verified') {
                 setLastVerifiedEvent(sanitizedRow);
                 sounds.playSplash();
@@ -163,9 +173,24 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
         )
         .subscribe();
 
+      const settingsChannel = supabase
+        .channel('public:fw_settings')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'fw_settings' },
+          (payload) => {
+            if (payload.new) {
+              const newSettings = payload.new as Settings;
+              setSettings((prev) => ({ ...prev, ...newSettings }));
+            }
+          }
+        )
+        .subscribe();
+
       return () => {
         if (supabase) {
-          supabase.removeChannel(channel);
+          supabase.removeChannel(contribChannel);
+          supabase.removeChannel(settingsChannel);
         }
       };
     } else {
@@ -406,13 +431,23 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
 
   // Update Settings
   const updateSettings = useCallback(async (newSettings: Partial<Settings>) => {
-    setSettings(prev => {
-      const updated = { ...prev, ...newSettings, updated_at: new Date().toISOString() };
-      if (isSupabaseConfigured && supabase) {
-        supabase.from('fw_settings').update(updated).eq('id', 1).then();
+    setSettings((prev) => ({ ...prev, ...newSettings, updated_at: new Date().toISOString() }));
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-password': process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'dario@jesusyouthpala',
+        },
+        body: JSON.stringify(newSettings),
+      });
+      const data = await res.json();
+      if (data?.settings) {
+        setSettings((prev) => ({ ...prev, ...data.settings }));
       }
-      return updated;
-    });
+    } catch (err) {
+      console.warn('Failed to update settings via API', err);
+    }
   }, []);
 
   // Quick simulation helper for admin testing

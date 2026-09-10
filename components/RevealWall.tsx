@@ -192,7 +192,7 @@ export function RevealWall() {
           style={{
             filter: stats.isCompleted || stats.percentage >= 100 
               ? 'blur(0px)' 
-              : 'blur(6px) brightness(0.94)',
+              : 'blur(16px) brightness(0.98)',
             transform: stats.isCompleted || stats.percentage >= 100 
               ? 'scale(1)' 
               : 'scale(1.03)',

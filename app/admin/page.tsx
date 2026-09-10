@@ -19,7 +19,9 @@ import {
   Eye,
   Sparkles,
   HeartHandshake,
-  MessageSquare
+  MessageSquare,
+  Copy,
+  Check
 } from 'lucide-react';
 import { WallProvider, useWall } from '@/lib/store';
 import { Contribution } from '@/lib/types';
@@ -44,6 +46,7 @@ function AdminDashboardContent() {
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [serverContributions, setServerContributions] = useState<Contribution[]>([]);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Settings form state
   const [targetInput, setTargetInput] = useState<string>(String(settings.target_amount));
@@ -127,6 +130,44 @@ function AdminDashboardContent() {
   const prayerList = useMemo(() => {
     return displayContributions.filter((c) => c.prayer_note && c.prayer_note.trim().length > 0);
   }, [displayContributions]);
+
+  const handleCopy = (text: string, id: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
+
+  const copySinglePrayer = (item: Contribution) => {
+    const text = `${item.contributor_name || 'Anonymous'}: "${item.prayer_note}" (₹${Number(item.amount).toLocaleString('en-IN')})`;
+    handleCopy(text, item.id);
+  };
+
+  const handleCopyAllPrayers = () => {
+    if (prayerList.length === 0) return;
+    const text = prayerList
+      .map((item, idx) => `${idx + 1}. ${item.contributor_name || 'Anonymous'}\n   Prayer Intention: "${item.prayer_note}"\n   Amount: ₹${Number(item.amount).toLocaleString('en-IN')}\n   Date: ${new Date(item.created_at).toLocaleDateString()}`)
+      .join('\n\n');
+    const fullText = `ORAH 2026 — PRAYER INTENTIONS (${prayerList.length} Requests)\nJesus Youth Pala Missionaries\n=========================================\n\n${text}`;
+    handleCopy(fullText, 'all-prayers');
+  };
+
+  const handleCopyNamesOnly = () => {
+    if (prayerList.length === 0) return;
+    const text = prayerList
+      .map((item, idx) => `${idx + 1}. ${item.contributor_name || 'Anonymous'}`)
+      .join('\n');
+    handleCopy(text, 'names-only');
+  };
+
+  const handleCopyCompactList = () => {
+    if (prayerList.length === 0) return;
+    const text = prayerList
+      .map((item) => `• ${item.contributor_name || 'Anonymous'}: "${item.prayer_note}"`)
+      .join('\n');
+    handleCopy(text, 'compact-prayers');
+  };
 
   return (
     <div className="min-h-screen bg-[#07080b] text-neutral-100 flex flex-col selection:bg-amber-500/30 selection:text-amber-200">
@@ -428,10 +469,30 @@ function AdminDashboardContent() {
 
                         {/* Confidential Prayer Request Card */}
                         {item.prayer_note ? (
-                          <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/[0.04] space-y-1 mt-1">
-                            <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-amber-400 font-semibold">
-                              <HeartHandshake className="w-3.5 h-3.5" />
-                              <span>Confidential Prayer Request (Visible to Admin Only)</span>
+                          <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/[0.04] space-y-1.5 mt-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-amber-400 font-semibold">
+                                <HeartHandshake className="w-3.5 h-3.5" />
+                                <span>Confidential Prayer Request (Visible to Admin Only)</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => copySinglePrayer(item)}
+                                className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-neutral-300 hover:text-white transition-all active:scale-95"
+                                title="Copy Name and Prayer Request"
+                              >
+                                {copiedId === item.id ? (
+                                  <>
+                                    <Check className="w-3 h-3 text-emerald-400" />
+                                    <span className="text-emerald-400">Copied!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3 h-3" />
+                                    <span>Copy</span>
+                                  </>
+                                )}
+                              </button>
                             </div>
                             <p className="text-xs text-neutral-200 italic font-serif leading-relaxed">
                               &ldquo;{item.prayer_note}&rdquo;
@@ -482,11 +543,33 @@ function AdminDashboardContent() {
 
                     {/* Show prayer note for verified contributions as well */}
                     {item.prayer_note && (
-                      <div className="p-3 rounded-lg border border-purple-500/20 bg-purple-500/[0.03] text-neutral-300 text-xs italic">
-                        <span className="text-purple-400 font-mono text-[10px] uppercase font-bold not-italic block mb-0.5">
-                          Prayer Intention:
-                        </span>
-                        &ldquo;{item.prayer_note}&rdquo;
+                      <div className="p-3 rounded-lg border border-purple-500/20 bg-purple-500/[0.03] text-neutral-300 text-xs space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-purple-400 font-mono text-[10px] uppercase font-bold not-italic">
+                            Prayer Intention:
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copySinglePrayer(item)}
+                            className="flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-neutral-300 hover:text-white transition-all active:scale-95"
+                            title="Copy Name and Prayer Request"
+                          >
+                            {copiedId === item.id ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-emerald-400">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <p className="italic text-neutral-200">
+                          &ldquo;{item.prayer_note}&rdquo;
+                        </p>
                       </div>
                     )}
                   </div>
@@ -497,14 +580,77 @@ function AdminDashboardContent() {
             {/* TAB 3: DEDICATED PRAYER INTENTIONS WALL */}
             {activeTab === 'prayers' && (
               <div className="space-y-4">
-                <div className="p-4 rounded-xl border border-purple-500/20 bg-purple-500/[0.03] space-y-1">
-                  <div className="flex items-center gap-2 text-sm font-serif font-bold text-purple-300">
-                    <HeartHandshake className="w-4 h-4" />
-                    <span>ORAH 2026 Community Prayer Sanctuary</span>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-xl border border-purple-500/20 bg-purple-500/[0.03]">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm font-serif font-bold text-purple-300">
+                      <HeartHandshake className="w-4 h-4" />
+                      <span>ORAH 2026 Community Prayer Sanctuary</span>
+                    </div>
+                    <p className="text-xs text-neutral-400 max-w-xl">
+                      All prayer intentions submitted by supporters during contributions. These intentions are confidential and only visible in this control room so that intercessory teams can pray for each intention.
+                    </p>
                   </div>
-                  <p className="text-xs text-neutral-400">
-                    All prayer intentions submitted by supporters during contributions. These intentions are confidential and only visible in this control room so that intercessory teams can pray for each intention.
-                  </p>
+
+                  {prayerList.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleCopyAllPrayers}
+                        className="px-3 py-2 rounded-lg font-semibold text-xs text-neutral-950 bg-gradient-to-r from-purple-400 to-pink-400 hover:brightness-105 shadow-[0_0_15px_rgba(192,132,252,0.25)] transition-all flex items-center gap-1.5 active:scale-95"
+                        title="Copy all prayer requests with contributor names, amounts, and dates"
+                      >
+                        {copiedId === 'all-prayers' ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-neutral-950" />
+                            <span>Copied All ({prayerList.length})!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-neutral-950" />
+                            <span>Copy All Prayers ({prayerList.length})</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleCopyCompactList}
+                        className="px-3 py-2 rounded-lg text-xs font-mono text-neutral-200 bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 hover:border-white/20 transition-all flex items-center gap-1.5 active:scale-95"
+                        title="Copy bullet list of Names & Prayer Requests"
+                      >
+                        {copiedId === 'compact-prayers' ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <span className="text-emerald-400">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5 text-neutral-400" />
+                            <span>Copy Names & Prayers</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleCopyNamesOnly}
+                        className="px-2.5 py-2 rounded-lg text-xs font-mono text-neutral-400 hover:text-white bg-transparent hover:bg-white/[0.05] border border-white/[0.08] transition-all flex items-center gap-1.5 active:scale-95"
+                        title="Copy list of contributor names"
+                      >
+                        {copiedId === 'names-only' ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            <span className="text-emerald-400">Names Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Names Only</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {prayerList.length === 0 ? (
@@ -520,9 +666,23 @@ function AdminDashboardContent() {
                       >
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="font-bold text-white font-serif">{item.contributor_name}</span>
-                          <span className="text-neutral-500 font-mono">
-                            {new Date(item.created_at).toLocaleDateString()}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-neutral-500 font-mono">
+                              {new Date(item.created_at).toLocaleDateString()}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => copySinglePrayer(item)}
+                              className="p-1 rounded text-neutral-400 hover:text-purple-300 hover:bg-purple-500/10 border border-white/5 hover:border-purple-500/20 transition-all flex items-center gap-1"
+                              title="Copy name and prayer request"
+                            >
+                              {copiedId === item.id ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
                         </div>
 
                         <p className="text-xs text-neutral-200 font-serif italic leading-relaxed pt-1 border-t border-white/[0.04]">

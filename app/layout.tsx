@@ -41,6 +41,9 @@ export default function RootLayout({
         playfairDisplayHeading.variable
       )}
     >
+      <head>
+        <meta name="apple-mobile-web-app-title" content="Finance Wall" />
+      </head>
       <body className="min-h-full flex flex-col bg-[#07080c] text-neutral-100 overflow-x-hidden antialiased">
         {children}
       </body>

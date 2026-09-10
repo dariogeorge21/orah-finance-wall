@@ -183,12 +183,20 @@ export function RevealWall() {
         onMouseLeave={handleMouseLeave}
         className="relative w-full aspect-[16/10] sm:aspect-[16/9] rounded-xl overflow-hidden cursor-crosshair bg-neutral-950 border border-white/[0.04]"
       >
-        {/* Underlying Sacred Artwork */}
+        {/* Underlying Sacred Artwork with Smart Blur until 100% completed */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={settings.banner_image_url || '/jesusAndChildren.jpg'}
           alt="ORAH 2026 Master Canvas"
-          className="absolute inset-0 w-full h-full object-cover object-center select-none"
+          className="absolute inset-0 w-full h-full object-cover object-center select-none transition-all duration-1000 ease-out"
+          style={{
+            filter: stats.isCompleted || stats.percentage >= 100 
+              ? 'blur(0px)' 
+              : 'blur(6px) brightness(0.94)',
+            transform: stats.isCompleted || stats.percentage >= 100 
+              ? 'scale(1)' 
+              : 'scale(1.03)',
+          }}
         />
 
         {/* Dynamic Masking Canvas */}

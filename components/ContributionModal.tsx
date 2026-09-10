@@ -125,15 +125,29 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
     }
   };
 
+  const handleUtrChange = (val: string) => {
+    // Strictly filter to letters and numbers only, auto-converted to uppercase
+    const clean = val.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    setUtr(clean);
+    if (utrError) setUtrError('');
+  };
+
   const handleUtrSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanUtr = utr.trim();
+    const cleanUtr = utr.trim().toUpperCase();
     if (!cleanUtr) {
-      setUtrError('Please enter the 12-digit UPI Reference Number / UTR.');
+      setUtrError('Please enter your 12-digit UPI Reference Number / Bank UTR.');
       return;
     }
-    if (cleanUtr.length < 6) {
-      setUtrError('UTR must be at least 6 digits (typically 12 digits).');
+
+    // Strict character + number set validation: [A-Z0-9] only, 8-24 characters
+    const STRICT_UTR_REGEX = /^[A-Z0-9]{8,24}$/;
+    if (!/^[A-Z0-9]+$/.test(cleanUtr)) {
+      setUtrError('Strict character set: Only uppercase letters (A-Z) and numbers (0-9) are allowed.');
+      return;
+    }
+    if (cleanUtr.length < 8 || cleanUtr.length > 24) {
+      setUtrError('UTR / Transaction ID must be between 8 and 24 characters (typically 12 digits).');
       return;
     }
 
@@ -366,30 +380,47 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
             {hasSlidPaid && (
               <form onSubmit={handleUtrSubmit} className="space-y-3 animate-in fade-in duration-300">
                 <div>
-                  <label className="block text-[10px] font-mono tracking-widest uppercase text-neutral-400 mb-1.5">
-                    12-Digit UPI Transaction ID / UTR
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={24}
-                    placeholder="e.g. 428901239845"
-                    value={utr}
-                    onChange={(e) => {
-                      setUtr(e.target.value);
-                      if (utrError) setUtrError('');
-                    }}
-                    autoFocus
-                    className="w-full rounded-xl bg-white/[0.04] px-4 py-2.5 text-sm font-mono text-white border border-amber-500/40 placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[10px] font-mono tracking-widest uppercase text-neutral-400">
+                      UPI Reference / UTR Number
+                    </label>
+                    <span className="text-[10px] font-mono">
+                      {utr.length > 0 ? (
+                        <span className={utr.length === 12 ? 'text-emerald-400 font-bold' : utr.length >= 8 ? 'text-amber-400' : 'text-neutral-500'}>
+                          {utr.length} {utr.length === 12 ? '(Standard 12 Digits ✓)' : 'chars'}
+                        </span>
+                      ) : (
+                        <span className="text-neutral-500 font-mono">Strict [A-Z, 0-9]</span>
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      maxLength={24}
+                      placeholder="e.g. 428901239845 or AXIS12345678"
+                      value={utr}
+                      onChange={(e) => handleUtrChange(e.target.value)}
+                      autoFocus
+                      className="w-full rounded-xl bg-white/[0.04] pl-4 pr-16 py-2.5 text-sm font-mono tracking-wider text-white border border-amber-500/40 placeholder:text-neutral-600 focus:outline-none focus:ring-1 focus:ring-amber-500 uppercase"
+                    />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] font-mono text-neutral-400 bg-black/40 px-2 py-0.5 rounded border border-white/10">
+                      <span>A-Z 0-9</span>
+                    </div>
+                  </div>
+
                   {utrError && (
-                    <p className="mt-1 text-xs text-red-400 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" />
+                    <p className="mt-1.5 text-xs text-red-400 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                       <span>{utrError}</span>
                     </p>
                   )}
-                  <p className="mt-1 text-[11px] text-neutral-500">
-                    Check your UPI payment receipt under &apos;UPI Ref No&apos; or &apos;UTR&apos;.
-                  </p>
+
+                  <div className="mt-1.5 flex items-center justify-between text-[11px] text-neutral-500">
+                    <span>Strict set: Uppercase letters &amp; numbers only</span>
+                    <span className="italic">12-digit UTR on receipt</span>
+                  </div>
                 </div>
 
                 <button

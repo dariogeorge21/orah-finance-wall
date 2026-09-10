@@ -276,12 +276,14 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
     const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
     const referenceId = `ORAH-${Date.now().toString(36).toUpperCase()}-${randomSuffix}`;
 
+    const cleanUtr = params.upiTransactionId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
     let newContrib: Contribution = {
       id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `contrib-${Date.now()}-${randomSuffix}`,
       contributor_name: params.contributorName.trim() || 'Anonymous Supporter',
       amount: params.amount,
       reference_id: referenceId,
-      upi_transaction_id: params.upiTransactionId.trim(),
+      upi_transaction_id: cleanUtr,
       status: 'pending',
       revealed_tile_ids: [],
       created_at: new Date().toISOString(),
@@ -295,7 +297,7 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           contributorName: params.contributorName,
           amount: params.amount,
-          upiTransactionId: params.upiTransactionId,
+          upiTransactionId: cleanUtr,
           prayerNote: params.prayerNote,
           referenceId,
         }),

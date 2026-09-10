@@ -46,7 +46,10 @@ function AdminDashboardContent() {
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   const [serverContributions, setServerContributions] = useState<Contribution[]>([]);
+  const [hasLoadedServer, setHasLoadedServer] = useState<boolean>(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isResetting, setIsResetting] = useState<boolean>(false);
+  const [resetSuccess, setResetSuccess] = useState<boolean>(false);
 
   // Settings form state
   const [targetInput, setTargetInput] = useState<string>(String(settings.target_amount));
@@ -66,6 +69,7 @@ function AdminDashboardContent() {
       const data = await res.json();
       if (data.success && Array.isArray(data.contributions)) {
         setServerContributions(data.contributions);
+        setHasLoadedServer(true);
       }
     } catch (e) {
       console.warn('Failed to fetch pending queue from server', e);
@@ -117,7 +121,29 @@ function AdminDashboardContent() {
   };
 
   // Derive active lists combining server database rows with local store
-  const displayContributions = serverContributions.length > 0 ? serverContributions : [...pendingContributions, ...verifiedContributions];
+  const displayContributions = hasLoadedServer 
+    ? serverContributions 
+    : [...pendingContributions, ...verifiedContributions];
+
+  const handleProductionReset = async () => {
+    const confirmation = prompt('WARNING: This will delete ALL contributions from the database, reset the wall to ₹0, and restore full frost over the sacred artwork for production.\n\nType "RESET" to confirm:');
+    if (confirmation !== 'RESET') {
+      return;
+    }
+
+    setIsResetting(true);
+    try {
+      await resetWall();
+      await refreshPendingQueue();
+      setResetSuccess(true);
+      setTimeout(() => setResetSuccess(false), 4000);
+      alert('Production Reset Complete! All contributions wiped. The wall is starting clean at ₹0.');
+    } catch (e) {
+      alert('Failed to reset: ' + (e instanceof Error ? e.message : 'Unknown error'));
+    } finally {
+      setIsResetting(false);
+    }
+  };
 
   const pendingList = useMemo(() => {
     return displayContributions.filter((c) => c.status === 'pending');
@@ -758,6 +784,32 @@ function AdminDashboardContent() {
                     </span>
                   )}
                 </div>
+
+                {/* Danger Zone: Production Zero Reset */}
+                <div className="mt-8 p-5 rounded-xl border border-red-500/20 bg-red-950/10 space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-mono font-bold text-red-400 uppercase tracking-wider">
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Production Reset & Zeroing</span>
+                  </div>
+                  <p className="text-xs text-neutral-400 leading-relaxed">
+                    Wipe all contribution logs and UTR records from the database, zero out the liquid gauge, and restore full frost over the sacred artwork for the live public launch.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleProductionReset}
+                    disabled={isResetting}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 transition-all flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <RotateCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
+                    <span>{isResetting ? 'Clearing Database...' : 'Reset to ₹0 (Production Launch)'}</span>
+                  </button>
+                  {resetSuccess && (
+                    <p className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Wall successfully reset to clean ₹0 state!
+                    </p>
+                  )}
+                </div>
               </form>
             )}
 
@@ -797,22 +849,25 @@ function AdminDashboardContent() {
                 <div className="p-6 rounded-2xl border border-red-500/20 bg-red-950/10 space-y-3">
                   <div className="flex items-center gap-2 text-sm font-bold text-red-400">
                     <RotateCcw className="w-4 h-4" />
-                    <span>Reset Reveal Wall</span>
+                    <span>Production Reset (Start at ₹0)</span>
                   </div>
                   <p className="text-xs text-neutral-400">
-                    Restore the public reveal wall and liquid reservoir back to the initial seed state.
+                    Wipes all contributions, pending UTRs, and prayer notes from the Supabase database. Restores the sacred canvas to a completely frosted 0% reveal state with an empty fluid reservoir.
                   </p>
                   <button
-                    onClick={() => {
-                      if (confirm('Reset wall to initial demo state?')) {
-                        resetWall();
-                      }
-                    }}
-                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-red-500/10 text-red-300 border border-red-500/30 hover:bg-red-500/20 transition-all flex items-center gap-1.5"
+                    onClick={handleProductionReset}
+                    disabled={isResetting}
+                    className="px-4 py-2 rounded-lg text-xs font-semibold bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25 transition-all flex items-center gap-1.5 disabled:opacity-50"
                   >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Reset Wall State</span>
+                    <RotateCcw className={`w-3.5 h-3.5 ${isResetting ? 'animate-spin' : ''}`} />
+                    <span>{isResetting ? 'Wiping Database...' : 'Wipe Database & Reset to ₹0'}</span>
                   </button>
+                  {resetSuccess && (
+                    <p className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Production reset complete!
+                    </p>
+                  )}
                 </div>
               </div>
             )}

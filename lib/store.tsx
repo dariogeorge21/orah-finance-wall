@@ -45,86 +45,8 @@ const DEFAULT_SETTINGS: Settings = {
   updated_at: new Date().toISOString(),
 };
 
-// Realistic initial sample data to make the page immediately stunning upon first view
-const INITIAL_SAMPLE_CONTRIBUTIONS: Contribution[] = [
-  {
-    id: 'seed-1',
-    contributor_name: 'Jesus Youth St. Thomas',
-    amount: 10000,
-    reference_id: 'ORAH-INIT-01',
-    upi_transaction_id: '428901239845',
-    status: 'verified',
-    revealed_tile_ids: [],
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-    verified_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-  },
-  {
-    id: 'seed-2',
-    contributor_name: 'Albin & Sneha',
-    amount: 5000,
-    reference_id: 'ORAH-INIT-02',
-    upi_transaction_id: '428912384756',
-    status: 'verified',
-    revealed_tile_ids: [],
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    verified_at: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: 'seed-3',
-    contributor_name: 'Maria George',
-    amount: 2500,
-    reference_id: 'ORAH-INIT-03',
-    upi_transaction_id: '428945672314',
-    status: 'verified',
-    revealed_tile_ids: [],
-    created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-    verified_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-  },
-  {
-    id: 'seed-4',
-    contributor_name: 'Thomas K.',
-    amount: 1000,
-    reference_id: 'ORAH-INIT-04',
-    upi_transaction_id: '428987654321',
-    status: 'verified',
-    revealed_tile_ids: [],
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-    verified_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-  },
-  {
-    id: 'seed-5',
-    contributor_name: 'JY Pala Parish Angels',
-    amount: 7500,
-    reference_id: 'ORAH-INIT-05',
-    upi_transaction_id: '428934567890',
-    status: 'verified',
-    revealed_tile_ids: [],
-    created_at: new Date(Date.now() - 1800000).toISOString(),
-    verified_at: new Date(Date.now() - 1800000).toISOString(),
-  },
-  {
-    id: 'seed-pending-1',
-    contributor_name: 'Anonymous Supporter',
-    amount: 500,
-    reference_id: 'ORAH-PEND-01',
-    upi_transaction_id: '429012345678',
-    status: 'pending',
-    revealed_tile_ids: [],
-    created_at: new Date(Date.now() - 600000).toISOString(),
-    prayer_note: 'For the youth of Pala diocese',
-  },
-  {
-    id: 'seed-pending-2',
-    contributor_name: 'Joel Mathew',
-    amount: 2000,
-    reference_id: 'ORAH-PEND-02',
-    upi_transaction_id: '429098765432',
-    status: 'pending',
-    revealed_tile_ids: [],
-    created_at: new Date(Date.now() - 180000).toISOString(),
-    prayer_note: 'Blessing for ORAH 2026',
-  }
-];
+// Empty initial contributions for clean production state (starts at ₹0)
+const INITIAL_SAMPLE_CONTRIBUTIONS: Contribution[] = [];
 
 // Pre-assign organic tiles to seed data
 function initializeSeedTiles(contributions: Contribution[], settings: Settings): Contribution[] {
@@ -170,20 +92,17 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
     setSettings(activeSettings);
 
     // Load Contributions
-    const savedContribs = localStorage.getItem('orah_contributions_v1');
+    const savedContribs = typeof window !== 'undefined' ? localStorage.getItem('orah_contributions_v1') : null;
     if (savedContribs) {
       try {
         const parsed = JSON.parse(savedContribs) as Contribution[];
         setContributions(parsed);
       } catch (e) {
         console.error('Failed to parse saved contributions', e);
-        const seeded = initializeSeedTiles(INITIAL_SAMPLE_CONTRIBUTIONS, activeSettings);
-        setContributions(seeded);
+        setContributions([]);
       }
     } else {
-      const seeded = initializeSeedTiles(INITIAL_SAMPLE_CONTRIBUTIONS, activeSettings);
-      setContributions(seeded);
-      localStorage.setItem('orah_contributions_v1', JSON.stringify(seeded));
+      setContributions([]);
     }
 
     // Connect to Supabase Realtime if configured
@@ -207,9 +126,12 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
         .from('fw_contributions')
         .select('id, contributor_name, amount, reference_id, status, revealed_tile_ids, created_at, verified_at')
         .order('created_at', { ascending: false })
-        .then(({ data }) => {
-          if (data && data.length > 0) {
+        .then(({ data, error }) => {
+          if (!error && Array.isArray(data)) {
             setContributions(data);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('orah_contributions_v1', JSON.stringify(data));
+            }
           }
         });
 
@@ -507,12 +429,26 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
     }, 600);
   }, [submitPendingContribution, verifyContribution]);
 
-  // Reset wall to clean state
+  // Reset wall to clean production state (₹0)
   const resetWall = useCallback(async () => {
-    const resetContribs = initializeSeedTiles(INITIAL_SAMPLE_CONTRIBUTIONS.slice(0, 3), settings);
-    setContributions(resetContribs);
-    localStorage.setItem('orah_contributions_v1', JSON.stringify(resetContribs));
-  }, [settings]);
+    setContributions([]);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('orah_contributions_v1');
+      localStorage.setItem('orah_contributions_v1', JSON.stringify([]));
+    }
+    try {
+      const res = await fetch('/api/admin/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-password': process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'dario@jesusyouthpala',
+        },
+      });
+      return await res.json();
+    } catch (e) {
+      console.warn('Failed to call reset API', e);
+    }
+  }, []);
 
   return (
     <WallContext.Provider

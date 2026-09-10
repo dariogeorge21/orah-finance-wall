@@ -35,9 +35,9 @@ interface WallContextType {
 const DEFAULT_SETTINGS: Settings = {
   id: 1,
   event_name: process.env.NEXT_PUBLIC_DEFAULT_EVENT_NAME || 'ORAH 2026',
-  target_amount: Number(process.env.NEXT_PUBLIC_DEFAULT_TARGET_AMOUNT) || 150000,
-  upi_vpa: process.env.NEXT_PUBLIC_DEFAULT_UPI_VPA || 'jesusyouthpala@upi',
-  upi_payee_name: process.env.NEXT_PUBLIC_DEFAULT_UPI_PAYEE || 'Jesus Youth Pala',
+  target_amount: Number(process.env.NEXT_PUBLIC_DEFAULT_TARGET_AMOUNT) || 100000,
+  upi_vpa: process.env.NEXT_PUBLIC_DEFAULT_UPI_VPA || '7838403506@rapl',
+  upi_payee_name: process.env.NEXT_PUBLIC_DEFAULT_UPI_PAYEE || 'Dario George',
   banner_image_url: '/orah-banner.svg',
   grid_cols: 40,
   grid_rows: 24,

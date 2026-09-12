@@ -483,7 +483,7 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
   // Quick simulation helper for admin testing
   const simulateContribution = useCallback(async (amount: number, name?: string) => {
     const mockPending = await submitPendingContribution({
-      contributorName: name || `Supporter #${Math.floor(100 + Math.random() * 900)}`,
+      contributorName: 'Anonymous',
       amount,
       prayerNote: 'Simulated contribution',
     });

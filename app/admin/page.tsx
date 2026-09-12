@@ -952,19 +952,19 @@ function AdminDashboardContent() {
                   </p>
                   <div className="flex flex-wrap gap-3 pt-1">
                     <button
-                      onClick={() => simulateContribution(500, 'Test Contributor (₹500)')}
+                      onClick={() => simulateContribution(500, 'Anonymous')}
                       className="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-all"
                     >
                       + Simulate ₹500
                     </button>
                     <button
-                      onClick={() => simulateContribution(2000, 'Youth Fellowship (₹2,000)')}
+                      onClick={() => simulateContribution(2000, 'Anonymous')}
                       className="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-all"
                     >
                       + Simulate ₹2,000
                     </button>
                     <button
-                      onClick={() => simulateContribution(10000, 'Grand Benefactor (₹10,000)')}
+                      onClick={() => simulateContribution(10000, 'Anonymous')}
                       className="px-4 py-2 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-all"
                     >
                       + Simulate ₹10,000 (Major Splash)

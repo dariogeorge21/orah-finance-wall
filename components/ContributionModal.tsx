@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import QRCode from 'qrcode';
 import { 
   X, 
@@ -40,6 +40,7 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
   const [copiedVpa, setCopiedVpa] = useState<boolean>(false);
   const [copiedRef, setCopiedRef] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const isSubmittingRef = useRef<boolean>(false);
   const [submittedRef, setSubmittedRef] = useState<string>('');
   const [timeLeft, setTimeLeft] = useState<number>(600);
 
@@ -49,6 +50,7 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
       setAmount(initialAmount);
       setIsCustom(false);
       setCustomAmountInput('');
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
       setTimeLeft(600);
       const randRef = `ORAH-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
@@ -119,7 +121,8 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
   };
 
   const handleConfirmPayment = async () => {
-    if (isSubmitting) return;
+    if (isSubmittingRef.current || isSubmitting) return;
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
 
     try {
@@ -127,15 +130,16 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
         contributorName: isAnonymous ? 'Anonymous Supporter' : contributorName,
         amount,
         prayerNote,
+        referenceId,
       });
 
       setSubmittedRef(created.reference_id);
       setStep('submitted');
     } catch (err) {
       console.error('Submission failed', err);
-      alert('Submission failed. Please try again.');
-    } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
+      alert('Submission failed. Please try again.');
     }
   };
 

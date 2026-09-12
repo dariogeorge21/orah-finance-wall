@@ -34,6 +34,44 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 1. Check for existing contribution with this reference_id (idempotency guard)
+    if (cleanRefId) {
+      const { data: existingRef } = await supabaseAdmin
+        .from('fw_contributions')
+        .select('*')
+        .eq('reference_id', cleanRefId)
+        .maybeSingle();
+
+      if (existingRef) {
+        return NextResponse.json({
+          success: true,
+          contribution: existingRef,
+          source: 'deduplicated_reference',
+        });
+      }
+    }
+
+    // 2. Short time-window deduplication (within last 4 seconds) for identical name + amount
+    const fourSecondsAgo = new Date(Date.now() - 4000).toISOString();
+    const { data: recentDup } = await supabaseAdmin
+      .from('fw_contributions')
+      .select('*')
+      .eq('contributor_name', newRecord.contributor_name)
+      .eq('amount', newRecord.amount)
+      .eq('status', 'pending')
+      .gte('created_at', fourSecondsAgo)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (recentDup) {
+      return NextResponse.json({
+        success: true,
+        contribution: recentDup,
+        source: 'deduplicated_time_window',
+      });
+    }
+
     // Insert into fw_contributions table using service role key
     const { data, error } = await supabaseAdmin
       .from('fw_contributions')

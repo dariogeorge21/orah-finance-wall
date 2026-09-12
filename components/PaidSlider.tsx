@@ -15,21 +15,26 @@ export function PaidSlider({ onConfirmed, isConfirmed = false }: PaidSliderProps
   const [confirmed, setConfirmed] = useState<boolean>(isConfirmed);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastSoundPos = useRef<number>(0);
+  const hasFiredRef = useRef<boolean>(false);
 
   useEffect(() => {
     setConfirmed(isConfirmed);
     if (isConfirmed) {
       setSliderPosition(1);
+      hasFiredRef.current = true;
+    } else {
+      hasFiredRef.current = false;
+      setSliderPosition(0);
     }
   }, [isConfirmed]);
 
   const handleStart = (clientX: number) => {
-    if (confirmed) return;
+    if (confirmed || hasFiredRef.current) return;
     setIsDragging(true);
   };
 
   const handleMove = useCallback((clientX: number) => {
-    if (!isDragging || confirmed || !containerRef.current) return;
+    if (!isDragging || confirmed || hasFiredRef.current || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const handleWidth = 56;
     const maxDistance = rect.width - handleWidth;
@@ -46,6 +51,8 @@ export function PaidSlider({ onConfirmed, isConfirmed = false }: PaidSliderProps
     }
 
     if (progress >= 0.96) {
+      if (hasFiredRef.current) return;
+      hasFiredRef.current = true;
       setIsDragging(false);
       setConfirmed(true);
       setSliderPosition(1);
@@ -55,13 +62,15 @@ export function PaidSlider({ onConfirmed, isConfirmed = false }: PaidSliderProps
   }, [isDragging, confirmed, onConfirmed]);
 
   const handleEnd = useCallback(() => {
-    if (confirmed) return;
+    if (confirmed || hasFiredRef.current) return;
     setIsDragging(false);
     if (sliderPosition < 0.92) {
       setSliderPosition(0);
     } else {
+      hasFiredRef.current = true;
       setConfirmed(true);
       setSliderPosition(1);
+      sounds.playSlideClick();
       onConfirmed();
     }
   }, [confirmed, sliderPosition, onConfirmed]);

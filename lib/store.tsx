@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { Contribution, Settings, TileAttribution, WallStats } from './types';
 import { pickWeightedTiles } from './reveal-algorithm';
 import { sounds } from './audio';
@@ -21,6 +21,7 @@ interface WallContextType {
   submitPendingContribution: (params: {
     contributorName: string;
     amount: number;
+    referenceId?: string;
     upiTransactionId?: string;
     prayerNote?: string;
   }) => Promise<Contribution>;
@@ -71,6 +72,7 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState<boolean>(false);
   const [lastVerifiedEvent, setLastVerifiedEvent] = useState<Contribution | null>(null);
+  const inFlightSubmissions = useRef<Map<string, Promise<Contribution>>>(new Map());
 
   // Initialize data from LocalStorage or Supabase
   useEffect(() => {
@@ -295,55 +297,81 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
   const submitPendingContribution = useCallback(async (params: {
     contributorName: string;
     amount: number;
+    referenceId?: string;
     upiTransactionId?: string;
     prayerNote?: string;
   }): Promise<Contribution> => {
     const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const referenceId = `ORAH-${Date.now().toString(36).toUpperCase()}-${randomSuffix}`;
+    const referenceId = params.referenceId || `ORAH-${Date.now().toString(36).toUpperCase()}-${randomSuffix}`;
+    const dedupKey = `${referenceId}-${params.amount}`;
 
-    const cleanUtr = params.upiTransactionId
-      ? params.upiTransactionId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-      : undefined;
-
-    let newContrib: Contribution = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `contrib-${Date.now()}-${randomSuffix}`,
-      contributor_name: params.contributorName.trim() || 'Anonymous Supporter',
-      amount: params.amount,
-      reference_id: referenceId,
-      upi_transaction_id: cleanUtr,
-      status: 'pending',
-      revealed_tile_ids: [],
-      created_at: new Date().toISOString(),
-    };
-
-    // Log directly to the database via server API using service role key
-    try {
-      const res = await fetch('/api/contributions/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contributorName: params.contributorName,
-          amount: params.amount,
-          upiTransactionId: cleanUtr,
-          prayerNote: params.prayerNote,
-          referenceId,
-        }),
-      });
-      const data = await res.json();
-      if (data.success && data.contribution) {
-        newContrib = {
-          ...data.contribution,
-          prayer_note: undefined, // Strictly omitted on public client for privacy
-        };
-      }
-    } catch (err) {
-      console.warn('Failed to insert via server API, saving locally', err);
+    // If an identical submission is already in flight, reuse its promise
+    if (inFlightSubmissions.current.has(dedupKey)) {
+      return inFlightSubmissions.current.get(dedupKey)!;
     }
 
-    setContributions(prev => [newContrib, ...prev]);
-    sounds.playSuccessChime();
+    const submissionPromise = (async () => {
+      const cleanUtr = params.upiTransactionId
+        ? params.upiTransactionId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+        : undefined;
 
-    return newContrib;
+      let newContrib: Contribution = {
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `contrib-${Date.now()}-${randomSuffix}`,
+        contributor_name: params.contributorName.trim() || 'Anonymous Supporter',
+        amount: params.amount,
+        reference_id: referenceId,
+        upi_transaction_id: cleanUtr,
+        status: 'pending',
+        revealed_tile_ids: [],
+        created_at: new Date().toISOString(),
+      };
+
+      // Log directly to the database via server API using service role key
+      try {
+        const res = await fetch('/api/contributions/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contributorName: params.contributorName,
+            amount: params.amount,
+            upiTransactionId: cleanUtr,
+            prayerNote: params.prayerNote,
+            referenceId,
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.contribution) {
+          newContrib = {
+            ...data.contribution,
+            prayer_note: undefined, // Strictly omitted on public client for privacy
+          };
+        }
+      } catch (err) {
+        console.warn('Failed to insert via server API, saving locally', err);
+      }
+
+      setContributions(prev => {
+        // Prevent duplicate addition in local state if already present by id or reference_id
+        if (prev.some(c => c.id === newContrib.id || (newContrib.reference_id && c.reference_id === newContrib.reference_id))) {
+          return prev;
+        }
+        return [newContrib, ...prev];
+      });
+      sounds.playSuccessChime();
+
+      return newContrib;
+    })();
+
+    inFlightSubmissions.current.set(dedupKey, submissionPromise);
+
+    try {
+      return await submissionPromise;
+    } finally {
+      // Clear key after 5s to avoid duplicate taps while preventing unbounded memory growth
+      setTimeout(() => {
+        inFlightSubmissions.current.delete(dedupKey);
+      }, 5000);
+    }
   }, []);
 
   // Admin verifies a pending contribution -> actual live reflection happens here!

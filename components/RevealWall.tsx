@@ -209,10 +209,13 @@ export function RevealWall() {
         {stats.isCompleted && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 text-center p-6 animate-in fade-in duration-700">
             <h3 className="text-3xl sm:text-5xl font-bold font-serif text-white tracking-wide">
-              ORAH 2026 UNVEILED
+              ORAH 2026
             </h3>
             <p className="text-xs sm:text-sm text-neutral-300 mt-2 font-light max-w-md">
-              The sacred vision is completely revealed through the collective generosity of Jesus Youth Pala.
+              Thank you for your generous contributions! The sacred canvas is now fully unveiled. Your support has illuminated the path for Orah and strengthened our community.
+            </p>
+            <p className="text-xs text-neutral-400 mt-2 font-light">
+              Jesus Youth Pala
             </p>
           </div>
         )}

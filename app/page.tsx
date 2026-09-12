@@ -34,7 +34,7 @@ function WallPageContent() {
           </h1>
 
           <p className="text-sm sm:text-base text-neutral-400 max-w-xl leading-relaxed font-light">
-            Every contribution fills the living fluid reservoir and dissolves frosted tiles across the sacred canvas in real time. Join Jesus Youth Pala in revealing ORAH 2026.
+            Every contribution fills the living fluid reservoir and dissolves frosted tiles across the sacred canvas. Join us for<a href="https://orah26.vercel.app/"> ORAH 2026.</a>
           </p>
 
           <div className="pt-2">

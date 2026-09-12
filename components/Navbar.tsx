@@ -50,15 +50,6 @@ export function Navbar({ onOpenContribute }: NavbarProps) {
           </div>
         </div>
 
-        {/* Center Live Indicator */}
-        <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full border border-white/[0.07] bg-white/[0.02] text-[11px] font-mono text-neutral-400">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span>{isRealtimeConnected ? 'LIVE REVEAL ACTIVE' : 'LOCAL SYNC'}</span>
-        </div>
-
         {/* Action Controls */}
         <div className="flex items-center gap-3">
           {/* Sound Toggle */}

@@ -969,6 +969,13 @@ function AdminDashboardContent() {
                     >
                       + Simulate ₹10,000 (Major Splash)
                     </button>
+                    <button
+                      onClick={() => simulateContribution()}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold bg-purple-500/15 text-purple-300 border border-purple-500/30 hover:bg-purple-500/25 transition-all flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                      + Simulate Random Amount
+                    </button>
                   </div>
                 </div>
 

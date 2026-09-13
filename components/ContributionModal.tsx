@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import QRCode from 'qrcode';
 import { 
   X, 
   Check, 
   Copy, 
-  ExternalLink, 
   Clock, 
   HeartHandshake, 
   Share2
@@ -37,6 +36,7 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
   // Payment State
   const [referenceId, setReferenceId] = useState<string>('');
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const autoDownloadedRefId = useRef<string | null>(null);
   const [copiedVpa, setCopiedVpa] = useState<boolean>(false);
   const [copiedRef, setCopiedRef] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -53,6 +53,7 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
       isSubmittingRef.current = false;
       setIsSubmitting(false);
       setTimeLeft(600);
+      autoDownloadedRefId.current = null;
       const randRef = `ORAH-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
       setReferenceId(randRef);
     }
@@ -73,20 +74,40 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
     return `upi://pay?pa=${encodeURIComponent(vpa)}&pn=${encodeURIComponent(payeeName)}&am=${amount.toFixed(2)}&tr=${encodeURIComponent(referenceId)}&tn=${encodeURIComponent(note)}&cu=INR`;
   }, [settings, amount, referenceId]);
 
+  const downloadQrCode = useCallback((url: string, refId: string) => {
+    if (!url) return;
+    try {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ORAH-Payment-QR-${refId}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to auto-download QR', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (step === 'payment' && upiUri) {
       QRCode.toDataURL(upiUri, {
-        width: 300,
+        width: 320,
         margin: 1,
         color: {
           dark: '#07080b',
           light: '#ffffff',
         },
       })
-        .then((url) => setQrDataUrl(url))
+        .then((url) => {
+          setQrDataUrl(url);
+          if (referenceId && autoDownloadedRefId.current !== referenceId) {
+            autoDownloadedRefId.current = referenceId;
+            downloadQrCode(url, referenceId);
+          }
+        })
         .catch((err) => console.error('Failed to generate QR', err));
     }
-  }, [step, upiUri]);
+  }, [step, upiUri, referenceId, downloadQrCode]);
 
   const estimatedTiles = useMemo(() => {
     const totalTiles = settings.grid_cols * settings.grid_rows;
@@ -334,13 +355,21 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
                 </button>
               </div>
 
-              <a
-                href={upiUri}
-                className="mt-2 text-xs text-amber-400 hover:underline flex items-center gap-1 sm:hidden"
-              >
-                <span>Open UPI App directly</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
+              <div className="mt-3.5 w-full p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs flex flex-col items-center justify-center gap-1 text-center animate-in fade-in duration-300">
+                <div className="flex items-center gap-1.5 font-medium">
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>QR has been downloaded, kindly pay and then slide here.</span>
+                </div>
+                {qrDataUrl && (
+                  <button
+                    type="button"
+                    onClick={() => downloadQrCode(qrDataUrl, referenceId)}
+                    className="text-[10px] text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
+                  >
+                    Click to download QR again
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Confirmation Actions */}
@@ -368,7 +397,10 @@ export function ContributionModal({ isOpen, onClose, initialAmount = 500 }: Cont
             <div className="flex justify-between items-center text-[11px] text-neutral-500 pt-1">
               <button
                 type="button"
-                onClick={() => setStep('amount')}
+                onClick={() => {
+                  autoDownloadedRefId.current = null;
+                  setStep('amount');
+                }}
                 className="hover:text-neutral-300 transition-colors"
               >
                 ← Back to amount

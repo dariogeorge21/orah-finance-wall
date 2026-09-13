@@ -28,7 +28,7 @@ interface WallContextType {
   verifyContribution: (id: string) => Promise<void>;
   rejectContribution: (id: string) => Promise<void>;
   updateSettings: (newSettings: Partial<Settings>) => Promise<void>;
-  simulateContribution: (amount: number, name?: string) => Promise<void>;
+  simulateContribution: (amount?: number, name?: string) => Promise<void>;
   resetWall: () => Promise<void>;
   lastVerifiedEvent: Contribution | null;
 }
@@ -481,10 +481,11 @@ export function WallProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Quick simulation helper for admin testing
-  const simulateContribution = useCallback(async (amount: number, name?: string) => {
+  const simulateContribution = useCallback(async (amount?: number, name?: string) => {
+    const actualAmount = amount || [100, 250, 500, 1000, 2500, 5000][Math.floor(Math.random() * 6)];
     const mockPending = await submitPendingContribution({
-      contributorName: 'Anonymous',
-      amount,
+      contributorName: name || 'Anonymous',
+      amount: actualAmount,
       prayerNote: 'Simulated contribution',
     });
 
